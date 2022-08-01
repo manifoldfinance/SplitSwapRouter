@@ -1,9 +1,15 @@
 name: test
 
-on: workflow_dispatch
+on: 
+  push:
+    paths:
+    - 'src/**/*.sol'
+    - '.github/workflows/*.yaml'
+    - '.github/workflows/*.yml'
 
 env:
   FOUNDRY_PROFILE: ci
+  ETH_RPC_URL:  ${{ secrets.ETH_RPC_URL }}
 
 jobs:
   check:
@@ -30,5 +36,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvv
+          forge test -f "$ETH_RPC_URL" -vvv
         id: test
