@@ -38,6 +38,7 @@ contract SplitOrderRouter {
     bytes4 internal constant SWAP_SELECTOR =
         bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
+    uint256 internal constant MIN_LIQUIDITY = 1000;
     address internal constant WETH09 =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant BACKUP_FACTORY =
@@ -126,10 +127,10 @@ contract SplitOrderRouter {
     function _getRoutingRatio(uint256 x1, uint256 x2)
         internal
         pure
-        returns (uint256)
+        returns (uint256 routingRatioNumerator, uint256 routingRatioDenominator)
     {
-        uint256 reserveRatio = (10000 * x1) / x2;
-        return (10000 * reserveRatio) / (10000 + reserveRatio);
+        routingRatioNumerator = x1;
+        routingRatioDenominator = x2 + x1;
     }
 
     /// @notice Calculate eth value of a token amount
@@ -190,15 +191,21 @@ contract SplitOrderRouter {
                 uint256(dex1Swaps[i].reserveIn),
                 uint256(dex1Swaps[i].reserveOut)
             );
-            if (amount0 < amountIn) {
-                uint256 amountInFirstPair = amount0 +
-                    (amountIn -
-                        (amount0 *
-                            _getRoutingRatio(
-                                uint256(dex0Swaps[i].reserveIn),
-                                uint256(dex1Swaps[i].reserveIn)
-                            )) /
-                        10000);
+            if (amount0 < amountIn - MIN_LIQUIDITY) {
+                uint256 amountInFirstPair;
+                {
+                    (
+                        uint256 routingRatioNumerator,
+                        uint256 routingRatioDenominator
+                    ) = _getRoutingRatio(
+                            uint256(dex0Swaps[i].reserveIn),
+                            uint256(dex1Swaps[i].reserveIn)
+                        );
+                    amountInFirstPair =
+                        amount0 +
+                        ((amountIn - amount0) * routingRatioNumerator) /
+                        routingRatioDenominator;
+                }
                 uint256 amountOutFirstPair = OpenMevLibrary.getAmountOut(
                     amountInFirstPair,
                     uint256(dex0Swaps[i].reserveIn),

@@ -70,6 +70,6 @@ contract SplitOrderRouterFuzzTest is DSTest {
             deadline
         );
 
-        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 100);
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 }
