@@ -33,18 +33,27 @@ library OpenMevLibrary {
         uint256 amountOut;
     }
 
-    address internal constant SUSHI_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-    bytes32 internal constant SUSHI_FACTORY_HASH = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
-    bytes32 internal constant BACKUP_FACTORY_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-    uint256 internal constant FF_SUSHI_FACTORY = 0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
-    uint256 internal constant FF_BACKUP_FACTORY = 0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
+    address internal constant SUSHI_FACTORY =
+        0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
+    bytes32 internal constant SUSHI_FACTORY_HASH =
+        0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
+    bytes32 internal constant BACKUP_FACTORY_HASH =
+        0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
+    uint256 internal constant FF_SUSHI_FACTORY =
+        0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
+    uint256 internal constant FF_BACKUP_FACTORY =
+        0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
 
     /// @notice Retreive factoryCodeHash from factory address
     /// @param factory Dex factory
     /// @return initCodeHash factory code hash for pair address calculation
     /// @return ffFactory formatted factory address prefixed with 0xff and shifted for abi encoding
-    function factoryHash(address factory) internal pure returns (bytes32 initCodeHash, uint256 ffFactory) {
+    function factoryHash(address factory)
+        internal
+        pure
+        returns (bytes32 initCodeHash, uint256 ffFactory)
+    {
         if (factory == SUSHI_FACTORY) {
             initCodeHash = SUSHI_FACTORY_HASH;
             ffFactory = FF_SUSHI_FACTORY;
@@ -61,7 +70,11 @@ library OpenMevLibrary {
     /// @param tokenB Pool token
     /// @return token0 First token in pool pair
     /// @return token1 Second token in pool pair
-    function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
+    function sortTokens(address tokenA, address tokenB)
+        internal
+        pure
+        returns (address token0, address token1)
+    {
         if (tokenA == tokenB) revert IdenticalAddresses();
         bool isZeroAddress;
         /// @solidity memory-safe-assembly
@@ -141,8 +154,12 @@ library OpenMevLibrary {
         address tokenB
     ) internal view returns (uint256 reserveA, uint256 reserveB) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1)).getReserves();
-        (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
+            _asmPairFor(factory, token0, token1)
+        ).getReserves();
+        (reserveA, reserveB) = tokenA == token0
+            ? (reserve0, reserve1)
+            : (reserve1, reserve0);
     }
 
     /// @notice Given some asset amount and reserves, returns an amount of the other asset representing equivalent value
@@ -157,7 +174,8 @@ library OpenMevLibrary {
         uint256 reserveB
     ) internal pure returns (uint256 amountB) {
         if (_isZero(amountA)) revert ZeroAmount();
-        if (_isZero(reserveA) || _isZero(reserveB)) revert InsufficientLiquidity();
+        if (_isZero(reserveA) || _isZero(reserveB))
+            revert InsufficientLiquidity();
         amountB = (amountA * reserveB) / reserveA;
     }
 
@@ -173,7 +191,8 @@ library OpenMevLibrary {
         uint256 reserveOut
     ) internal pure returns (uint256 amountOut) {
         if (_isZero(amountIn)) revert ZeroAmount();
-        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY) revert InsufficientLiquidity();
+        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY)
+            revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 amountInWithFee = amountIn * uint256(997);
@@ -196,12 +215,16 @@ library OpenMevLibrary {
         uint256 reserveOut
     ) internal pure returns (uint256 amountIn) {
         if (_isZero(amountOut)) revert ZeroAmount();
-        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY || reserveOut <= amountOut)
-            revert InsufficientLiquidity();
+        if (
+            reserveIn < MINIMUM_LIQUIDITY ||
+            reserveOut < MINIMUM_LIQUIDITY ||
+            reserveOut <= amountOut
+        ) revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 numerator = reserveIn * amountOut * uint256(1000);
-            if ((reserveIn * uint256(1000)) != numerator / amountOut) revert Overflow();
+            if ((reserveIn * uint256(1000)) != numerator / amountOut)
+                revert Overflow();
             uint256 denominator = (reserveOut - amountOut) * uint256(997);
             amountIn = (numerator / denominator) + 1;
         }
@@ -223,7 +246,11 @@ library OpenMevLibrary {
         amounts = new uint256[](length);
         amounts[0] = amountIn;
         for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(
+                factory,
+                path[i],
+                path[_inc(i)]
+            );
             amounts[_inc(i)] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -254,17 +281,27 @@ library OpenMevLibrary {
             uint112 reserveIn;
             uint112 reserveOut;
             {
-                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
-                (reserveIn, reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
+                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                    .getReserves();
+                (reserveIn, reserveOut) = isReverse
+                    ? (reserve1, reserve0)
+                    : (reserve0, reserve1);
             }
             swaps[i].reserveIn = reserveIn;
             swaps[i].reserveOut = reserveOut;
-            swaps[i].amountOut = getAmountOut(swaps[i].amountIn, reserveIn, reserveOut);
+            swaps[i].amountOut = getAmountOut(
+                swaps[i].amountIn,
+                reserveIn,
+                reserveOut
+            );
             unchecked {
-                swaps[i].isBackrunnable = _isNonZero((1000 * swaps[i].amountIn) / reserveIn);
+                swaps[i].isBackrunnable = _isNonZero(
+                    (1000 * swaps[i].amountIn) / reserveIn
+                );
             }
             // assign next amount in as last amount out
-            if (i < _dec(_dec(length))) swaps[_inc(i)].amountIn = swaps[i].amountOut;
+            if (i < _dec(_dec(length)))
+                swaps[_inc(i)].amountIn = swaps[i].amountOut;
         }
     }
 
@@ -284,7 +321,11 @@ library OpenMevLibrary {
         amounts = new uint256[](length);
         amounts[_dec(length)] = amountOut;
         for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(
+                factory,
+                path[_dec(i)],
+                path[i]
+            );
             amounts[_dec(i)] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -315,12 +356,21 @@ library OpenMevLibrary {
             uint112 reserveIn;
             uint112 reserveOut;
             {
-                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
-                (reserveIn, reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
+                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                    .getReserves();
+                (reserveIn, reserveOut) = isReverse
+                    ? (reserve1, reserve0)
+                    : (reserve0, reserve1);
             }
-            swaps[_dec(i)].amountIn = getAmountIn(swaps[_dec(i)].amountOut, reserveIn, reserveOut);
+            swaps[_dec(i)].amountIn = getAmountIn(
+                swaps[_dec(i)].amountOut,
+                reserveIn,
+                reserveOut
+            );
             unchecked {
-                swaps[_dec(i)].isBackrunnable = _isNonZero((1000 * swaps[_dec(i)].amountOut) / reserveOut);
+                swaps[_dec(i)].isBackrunnable = _isNonZero(
+                    (1000 * swaps[_dec(i)].amountOut) / reserveOut
+                );
             }
             // assign next amount out as last amount in
             if (i > 1) swaps[i - 2].amountOut = swaps[_dec(i)].amountIn;
@@ -353,12 +403,22 @@ library OpenMevLibrary {
         // save gas with unchecked ... perform internal overflow checks
         unchecked {
             Cb = uint256(reserve1Token1) * uint256(reserve0Token0) * 1000000;
-            if ((uint256(reserve0Token0) * 1000000) == Cb / uint256(reserve1Token1)) {
-                uint256 Ca = uint256(reserve1Token0) * uint256(reserve0Token1) * 994009;
-                if ((uint256(reserve0Token1) * 994009) == Ca / uint256(reserve1Token0)) {
+            if (
+                (uint256(reserve0Token0) * 1000000) ==
+                Cb / uint256(reserve1Token1)
+            ) {
+                uint256 Ca = uint256(reserve1Token0) *
+                    uint256(reserve0Token1) *
+                    994009;
+                if (
+                    (uint256(reserve0Token1) * 994009) ==
+                    Ca / uint256(reserve1Token0)
+                ) {
                     if (Ca > Cb) {
                         Cf = Ca - Cb;
-                        Cg = (uint256(reserve1Token1) * 997000) + (uint256(reserve0Token1) * 994009);
+                        Cg =
+                            (uint256(reserve1Token1) * 997000) +
+                            (uint256(reserve0Token1) * 994009);
                     }
                 }
             }
@@ -403,18 +463,40 @@ library OpenMevLibrary {
         uint256 Cf;
         uint256 Cg;
         {
-            (uint112 pair0Reserve0, uint112 pair0Reserve1, ) = IUniswapV2Pair(pair0).getReserves();
-            (uint112 pair1Reserve0, uint112 pair1Reserve1, ) = IUniswapV2Pair(pair1).getReserves();
+            (uint112 pair0Reserve0, uint112 pair0Reserve1, ) = IUniswapV2Pair(
+                pair0
+            ).getReserves();
+            (uint112 pair1Reserve0, uint112 pair1Reserve1, ) = IUniswapV2Pair(
+                pair1
+            ).getReserves();
             (Cb, Cf, Cg) = isReverse
-                ? calcCoeffs(pair0Reserve0, pair0Reserve1, pair1Reserve0, pair1Reserve1)
-                : calcCoeffs(pair0Reserve1, pair0Reserve0, pair1Reserve1, pair1Reserve0);
+                ? calcCoeffs(
+                    pair0Reserve0,
+                    pair0Reserve1,
+                    pair1Reserve0,
+                    pair1Reserve1
+                )
+                : calcCoeffs(
+                    pair0Reserve1,
+                    pair0Reserve0,
+                    pair1Reserve1,
+                    pair1Reserve0
+                );
         }
         if (_isNonZero(Cf) && _isNonZero(Cg)) {
             uint256 numerator0;
             {
-                (uint256 _bSquare0, uint256 _bSquare1) = Uint512.mul256x256(Cb, Cb);
+                (uint256 _bSquare0, uint256 _bSquare1) = Uint512.mul256x256(
+                    Cb,
+                    Cb
+                );
                 (uint256 _4ac0, uint256 _4ac1) = Uint512.mul256x256(Cb, Cf);
-                (uint256 _bsq4ac0, uint256 _bsq4ac1) = Uint512.add512x512(_bSquare0, _bSquare1, _4ac0, _4ac1);
+                (uint256 _bsq4ac0, uint256 _bsq4ac1) = Uint512.add512x512(
+                    _bSquare0,
+                    _bSquare1,
+                    _4ac0,
+                    _4ac1
+                );
                 numerator0 = Uint512.sqrt512(_bsq4ac0, _bsq4ac1);
             }
             if (numerator0 > Cb) {
@@ -423,7 +505,11 @@ library OpenMevLibrary {
                     optimalAmount = (numerator0 - Cb) / Cg;
                 }
                 // adjust optimal amount for available liquidity if needed
-                if (contractAssetBalance < optimalAmount && !isAaveAsset && bentoBalance < optimalAmount) {
+                if (
+                    contractAssetBalance < optimalAmount &&
+                    !isAaveAsset &&
+                    bentoBalance < optimalAmount
+                ) {
                     if (contractAssetBalance > bentoBalance) {
                         optimalAmount = contractAssetBalance;
                     } else {

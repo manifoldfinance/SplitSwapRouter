@@ -10,7 +10,7 @@ import "./ERC20.sol";
 import "./interfaces/IWETH.sol";
 import "./libraries/OpenMevLibrary.sol";
 import "./libraries/Babylonian.sol";
-import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
 /// @title SplitOrderRouter
 /// @author Sandy Bradley <sandy@manifoldx.com>
@@ -35,11 +35,13 @@ contract SplitOrderRouter {
     error InsufficientOutputAmount();
     error NotYetImplemented();
 
-
-    bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
+    bytes4 internal constant SWAP_SELECTOR =
+        bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
-    address internal constant WETH09 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant BACKUP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f; // uniswap v2 factory
+    address internal constant WETH09 =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant BACKUP_FACTORY =
+        0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f; // uniswap v2 factory
 
     function WETH() external pure returns (address) {
         return WETH09;
@@ -51,11 +53,13 @@ contract SplitOrderRouter {
     function ensure(uint256 deadline) internal view {
         if (deadline < block.timestamp) revert Expired();
     }
-    
-    function _swap(bool isReverse, address to, address pair, uint256 amountOut)
-        internal
-        virtual
-    {
+
+    function _swap(
+        bool isReverse,
+        address to,
+        address pair,
+        uint256 amountOut
+    ) internal virtual {
         (uint256 amount0Out, uint256 amount1Out) = isReverse
             ? (amountOut, uint256(0))
             : (uint256(0), amountOut);
@@ -78,90 +82,208 @@ contract SplitOrderRouter {
         uint256 deadline
     ) external virtual returns (uint256[] memory amounts) {
         ensure(deadline);
-        OpenMevLibrary.Swap[] memory sushiSwaps = OpenMevLibrary.getSwapsOut(OpenMevLibrary.SUSHI_FACTORY, amountIn, path);
-        OpenMevLibrary.Swap[] memory uniSwaps = OpenMevLibrary.getSwapsOut(BACKUP_FACTORY, amountIn, path);
+        OpenMevLibrary.Swap[] memory sushiSwaps = OpenMevLibrary.getSwapsOut(
+            OpenMevLibrary.SUSHI_FACTORY,
+            amountIn,
+            path
+        );
+        OpenMevLibrary.Swap[] memory uniSwaps = OpenMevLibrary.getSwapsOut(
+            BACKUP_FACTORY,
+            amountIn,
+            path
+        );
         uint256 length = sushiSwaps.length;
-        if (uniSwaps[_dec(length)].amountOut < sushiSwaps[_dec(length)].amountOut) {
+        if (
+            uniSwaps[_dec(length)].amountOut <
+            sushiSwaps[_dec(length)].amountOut
+        ) {
             //  sushi better price
-            if (sushiSwaps[_dec(length)].amountOut < amountOutMin) revert InsufficientOutputAmount();
+            if (sushiSwaps[_dec(length)].amountOut < amountOutMin)
+                revert InsufficientOutputAmount();
             amounts = _splitRoute(to, sushiSwaps, uniSwaps);
         } else {
             //  uni better price
-            if (uniSwaps[_dec(length)].amountOut < amountOutMin) revert InsufficientOutputAmount();
+            if (uniSwaps[_dec(length)].amountOut < amountOutMin)
+                revert InsufficientOutputAmount();
             amounts = _splitRoute(to, uniSwaps, sushiSwaps);
         }
     }
 
-    function _amountToSyncPrices(uint256 x1, uint256 y1, uint256 x2, uint256 y2) internal pure returns(uint256) {
-        unchecked{
-            return x1 * (Babylonian.sqrt(9 + (3988000 * x2 * y1 / (y2 * x1))) - 1997) / 1994;
-        }        
+    function _amountToSyncPrices(
+        uint256 x1,
+        uint256 y1,
+        uint256 x2,
+        uint256 y2
+    ) internal pure returns (uint256) {
+        unchecked {
+            return
+                (x1 *
+                    (Babylonian.sqrt(9 + ((3988000 * x2 * y1) / (y2 * x1))) -
+                        1997)) / 1994;
+        }
     }
-    
-    function _getRoutingRatio(uint256 x1, uint256 x2) internal pure returns(uint256) {
-        uint256 reserveRatio = 10000 * x1 / x2;
-        return 10000 * reserveRatio / (10000 + reserveRatio);
+
+    function _getRoutingRatio(uint256 x1, uint256 x2)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 reserveRatio = (10000 * x1) / x2;
+        return (10000 * reserveRatio) / (10000 + reserveRatio);
     }
 
     /// @notice Calculate eth value of a token amount
     /// @param token Address of token
     /// @param amount Amount of token
     /// @return eth value
-    function _wethAmount(address token, uint256 amount) internal view returns (uint256) {
+    function _wethAmount(address token, uint256 amount)
+        internal
+        view
+        returns (uint256)
+    {
         if (token == WETH09) return amount;
         address pair;
         bool isReverse;
         {
-            (address token0, address token1) = OpenMevLibrary.sortTokens(token, WETH09);
-            pair = OpenMevLibrary._asmPairFor(OpenMevLibrary.SUSHI_FACTORY, token0, token1);
+            (address token0, address token1) = OpenMevLibrary.sortTokens(
+                token,
+                WETH09
+            );
+            pair = OpenMevLibrary._asmPairFor(
+                OpenMevLibrary.SUSHI_FACTORY,
+                token0,
+                token1
+            );
             isReverse = WETH09 == token0;
         }
         {
-            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
-            (uint112 reserveIn, uint112 reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
+            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                .getReserves();
+            (uint112 reserveIn, uint112 reserveOut) = isReverse
+                ? (reserve1, reserve0)
+                : (reserve0, reserve1);
             return OpenMevLibrary.getAmountOut(amount, reserveIn, reserveOut);
         }
     }
 
-    function _splitRoute(address to, OpenMevLibrary.Swap[] memory dex0Swaps, OpenMevLibrary.Swap[] memory dex1Swaps) internal returns(uint256[] memory amounts) {
+    function _splitRoute(
+        address to,
+        OpenMevLibrary.Swap[] memory dex0Swaps,
+        OpenMevLibrary.Swap[] memory dex1Swaps
+    ) internal returns (uint256[] memory amounts) {
         uint256 length = dex0Swaps.length;
         amounts = new uint256[](_inc(length));
         amounts[0] = dex0Swaps[0].amountIn;
         for (uint256 i; i < length; i = _inc(i)) {
             uint256 amountIn = amounts[i];
-            uint256 amountOutOnePair = _isZero(i) ? dex0Swaps[0].amountOut : OpenMevLibrary.getAmountOut(amountIn, uint256(dex0Swaps[i].reserveIn), uint256(dex0Swaps[i].reserveOut));
+            uint256 amountOutOnePair = _isZero(i)
+                ? dex0Swaps[0].amountOut
+                : OpenMevLibrary.getAmountOut(
+                    amountIn,
+                    uint256(dex0Swaps[i].reserveIn),
+                    uint256(dex0Swaps[i].reserveOut)
+                );
             address _to = i < _dec(length) ? address(this) : to;
-            uint256 amount0 = _amountToSyncPrices(uint256(dex0Swaps[i].reserveIn), uint256(dex0Swaps[i].reserveOut), uint256(dex1Swaps[i].reserveIn), uint256(dex1Swaps[i].reserveOut));
-            if (amount0 < amountIn){
-                uint256 amountInFirstPair = amount0 + (amountIn - amount0 * _getRoutingRatio(uint256(dex0Swaps[i].reserveIn), uint256(dex1Swaps[i].reserveIn)) / 10000);
-                uint256 amountOutFirstPair = OpenMevLibrary.getAmountOut(amountInFirstPair, uint256(dex0Swaps[i].reserveIn), uint256(dex0Swaps[i].reserveOut));
-                uint256 amountOutSecondPair = OpenMevLibrary.getAmountOut(amountIn - amountInFirstPair, uint256(dex1Swaps[i].reserveIn), uint256(dex1Swaps[i].reserveOut));
+            uint256 amount0 = _amountToSyncPrices(
+                uint256(dex0Swaps[i].reserveIn),
+                uint256(dex0Swaps[i].reserveOut),
+                uint256(dex1Swaps[i].reserveIn),
+                uint256(dex1Swaps[i].reserveOut)
+            );
+            if (amount0 < amountIn) {
+                uint256 amountInFirstPair = amount0 +
+                    (amountIn -
+                        (amount0 *
+                            _getRoutingRatio(
+                                uint256(dex0Swaps[i].reserveIn),
+                                uint256(dex1Swaps[i].reserveIn)
+                            )) /
+                        10000);
+                uint256 amountOutFirstPair = OpenMevLibrary.getAmountOut(
+                    amountInFirstPair,
+                    uint256(dex0Swaps[i].reserveIn),
+                    uint256(dex0Swaps[i].reserveOut)
+                );
+                uint256 amountOutSecondPair = OpenMevLibrary.getAmountOut(
+                    amountIn - amountInFirstPair,
+                    uint256(dex1Swaps[i].reserveIn),
+                    uint256(dex1Swaps[i].reserveOut)
+                );
                 // uint256 amountOutGain = amountOutFirstPair + amountOutSecondPair - amountOutOnePair;
-                if (_isNonZero(amountOutFirstPair + amountOutSecondPair - amountOutOnePair) && _wethAmount(dex0Swaps[i].tokenOut, amountOutFirstPair + amountOutSecondPair - amountOutOnePair) > block.basefee * EST_SWAP_GAS_USED){
+                if (
+                    _isNonZero(
+                        amountOutFirstPair +
+                            amountOutSecondPair -
+                            amountOutOnePair
+                    ) &&
+                    _wethAmount(
+                        dex0Swaps[i].tokenOut,
+                        amountOutFirstPair +
+                            amountOutSecondPair -
+                            amountOutOnePair
+                    ) >
+                    block.basefee * EST_SWAP_GAS_USED
+                ) {
                     // amountOutGain is greater than extra swap fee
                     // split the route
                     if (_isZero(i))
-                        ERC20(dex0Swaps[0].tokenIn).safeTransferFrom(msg.sender, dex0Swaps[0].pair, amountInFirstPair);
+                        ERC20(dex0Swaps[0].tokenIn).safeTransferFrom(
+                            msg.sender,
+                            dex0Swaps[0].pair,
+                            amountInFirstPair
+                        );
                     else
-                        ERC20(dex0Swaps[i].tokenIn).safeTransfer(dex0Swaps[i].pair, amountInFirstPair);
-                    _swap(dex0Swaps[i].isReverse, _to, dex0Swaps[i].pair, amountOutFirstPair);
+                        ERC20(dex0Swaps[i].tokenIn).safeTransfer(
+                            dex0Swaps[i].pair,
+                            amountInFirstPair
+                        );
+                    _swap(
+                        dex0Swaps[i].isReverse,
+                        _to,
+                        dex0Swaps[i].pair,
+                        amountOutFirstPair
+                    );
                     if (_isZero(i))
-                        ERC20(dex1Swaps[0].tokenIn).safeTransferFrom(msg.sender, dex1Swaps[0].pair, amountIn - amountInFirstPair);
+                        ERC20(dex1Swaps[0].tokenIn).safeTransferFrom(
+                            msg.sender,
+                            dex1Swaps[0].pair,
+                            amountIn - amountInFirstPair
+                        );
                     else
-                        ERC20(dex1Swaps[i].tokenIn).safeTransfer(dex1Swaps[i].pair, amountIn - amountInFirstPair);
-                    _swap(dex1Swaps[i].isReverse, _to, dex1Swaps[i].pair, amountOutSecondPair);
-                    amounts[i+1] = amountOutFirstPair + amountOutSecondPair;
+                        ERC20(dex1Swaps[i].tokenIn).safeTransfer(
+                            dex1Swaps[i].pair,
+                            amountIn - amountInFirstPair
+                        );
+                    _swap(
+                        dex1Swaps[i].isReverse,
+                        _to,
+                        dex1Swaps[i].pair,
+                        amountOutSecondPair
+                    );
+                    amounts[i + 1] = amountOutFirstPair + amountOutSecondPair;
                     continue;
-                } 
+                }
             }
             // extra gas not worth it
             // single swap on best rate dex
             if (_isZero(i))
-                ERC20(dex0Swaps[0].tokenIn).safeTransferFrom(msg.sender, dex0Swaps[0].pair, amountIn);
+                ERC20(dex0Swaps[0].tokenIn).safeTransferFrom(
+                    msg.sender,
+                    dex0Swaps[0].pair,
+                    amountIn
+                );
             else
-                ERC20(dex0Swaps[i].tokenIn).safeTransfer(dex0Swaps[i].pair, amountIn);
-            _swap(dex0Swaps[i].isReverse, _to, dex0Swaps[i].pair, amountOutOnePair);
-            amounts[i+1] = amountOutOnePair;
+                ERC20(dex0Swaps[i].tokenIn).safeTransfer(
+                    dex0Swaps[i].pair,
+                    amountIn
+                );
+            _swap(
+                dex0Swaps[i].isReverse,
+                _to,
+                dex0Swaps[i].pair,
+                amountOutOnePair
+            );
+            amounts[i + 1] = amountOutOnePair;
         }
     }
 
