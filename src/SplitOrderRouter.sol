@@ -119,7 +119,7 @@ contract SplitOrderRouter {
         unchecked {
             return
                 (x1 *
-                    (Babylonian.sqrt(9 + ((3988000 * x2 * y1) / (y2 * x1))) -
+                    (Babylonian.sqrt(9 + ((1000000 * x2 * y1) / (y2 * x1))) -
                         1997)) / 1994;
         }
     }
