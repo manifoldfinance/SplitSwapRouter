@@ -1003,6 +1003,11 @@ contract SplitOrderRouter {
                 0, // output buffer
                 0 // output length
             )
+
+            if iszero(success) {
+                // 0 size error is the cheapest, but mstore an error enum if you wish
+                revert(0x0, 0x0)
+            }
         }
     }
 
@@ -1010,6 +1015,7 @@ contract SplitOrderRouter {
     /// @notice Uint256 zero check gas saver
     /// @param value Number to check
     function _isZero(uint256 value) internal pure returns (bool boolValue) {
+        // Stack Only Safety
         assembly ("memory-safe") {
             boolValue := iszero(value)
         }
@@ -1019,6 +1025,7 @@ contract SplitOrderRouter {
     /// @notice Uint256 not zero check gas saver
     /// @param value Number to check
     function _isNonZero(uint256 value) internal pure returns (bool boolValue) {
+        // Stack Only Safety
         assembly ("memory-safe") {
             boolValue := iszero(iszero(value))
         }
@@ -1027,18 +1034,20 @@ contract SplitOrderRouter {
     /// @custom:gas Unchecked increment gas saver
     /// @notice Unchecked increment gas saver for loops
     /// @param i Number to increment
-    function _inc(uint256 i) internal pure returns (uint256) {
-        unchecked {
-            return i + 1;
-        }
+    function _inc(uint256 i) internal pure returns (uint256 result) {
+        // Stack only safety
+        assembly ("memory-safe") {
+            result := add(i, 1)
+        } 
     }
 
     /// @custom:gas Unchecked decrement gas saver
     /// @notice Unchecked decrement gas saver for loops
     /// @param i Number to decrement
-    function _dec(uint256 i) internal pure returns (uint256) {
-        unchecked {
-            return i - 1;
+    function _dec(uint256 i) internal pure returns (uint256 result) {
+        // Stack Only Safety
+        assembly ("memory-safe") {
+            result := sub(i, 1)
         }
     }
 
