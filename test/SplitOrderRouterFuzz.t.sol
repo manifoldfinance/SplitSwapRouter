@@ -74,7 +74,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testGetAmountsOut(uint112 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         address[] memory path = new address[](2);
         path[0] = WETH;
         path[1] = USDC;
@@ -97,8 +97,9 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapExactETHForTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
@@ -119,7 +120,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapETHForExactTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         address[] memory path = new address[](2);
@@ -145,7 +146,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForETH(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
@@ -191,7 +192,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapTokensForExactETH(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
@@ -279,7 +280,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapTokensForExactTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         (, uint112 reserveWeth, ) = usdWeth.getReserves();
         vm.assume(amountIn < reserveWeth / 10);
@@ -327,7 +328,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
@@ -351,7 +352,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
@@ -399,7 +400,7 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
         // uint256 amountIn = 1000000000000000000;
         uint256 amountOutMin = 0;
@@ -447,8 +448,10 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testLiquidityEth(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10);
         // uint256 amountIn = 1000000000000000000;
         // uint256 amountInToken = 4000000000;
         address[] memory path = new address[](2);
@@ -489,8 +492,10 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testLiquidityTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10);
         // uint256 amountIn = 1000000000000000000;
         // uint256 amountInToken = 4000000000;
         address[] memory path = new address[](2);
@@ -556,8 +561,10 @@ contract SplitOrderRouterFuzzTest is DSTest {
     }
 
     function testLiquidityEthSupportingFeeOnTransfer(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10);
         // uint256 amountIn = 1000000000000000000;
         // uint256 amountInToken = 4000000000;
         address[] memory path = new address[](2);

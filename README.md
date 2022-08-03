@@ -21,7 +21,27 @@ forge build
 ```bash
 forge test -f "$ETH_RPC_URL" -vvv
 ```
-
+```bash
+Running 17 tests for test/SplitOrderRouterFuzz.t.sol:SplitOrderRouterFuzzTest
+[PASS] testGetAmountIn(uint112,uint112,uint112) (runs: 1000, μ: 16660, ~: 16660)
+[PASS] testGetAmountOut(uint112,uint112,uint112) (runs: 1000, μ: 16116, ~: 16116)
+[PASS] testGetAmountsIn(uint112) (runs: 1000, μ: 36133, ~: 36133)
+[PASS] testGetAmountsOut(uint112) (runs: 1000, μ: 33033, ~: 33033)
+[PASS] testLiquidityEth(uint256) (runs: 1000, μ: 614922, ~: 611395)
+[PASS] testLiquidityEthSupportingFeeOnTransfer(uint256) (runs: 1000, μ: 617579, ~: 612604)
+[PASS] testLiquidityTokens(uint256) (runs: 1000, μ: 636588, ~: 642472)
+[PASS] testQuote(uint112,uint112,uint112) (runs: 1000, μ: 15966, ~: 15966)
+[PASS] testSwapETHForExactTokens(uint256) (runs: 1000, μ: 244810, ~: 249713)
+[PASS] testSwapExactETHForTokens(uint256) (runs: 1000, μ: 206066, ~: 192096)
+[PASS] testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 194981, ~: 194981)
+[PASS] testSwapExactTokensForETH(uint256) (runs: 1000, μ: 379847, ~: 373627)
+[PASS] testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 362968, ~: 370557)
+[PASS] testSwapExactTokensForTokens(uint256) (runs: 1000, μ: 316265, ~: 323441)
+[PASS] testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 357806, ~: 367636)
+[PASS] testSwapTokensForExactETH(uint256) (runs: 1000, μ: 387861, ~: 382940)
+[PASS] testSwapTokensForExactTokens(uint256) (runs: 1000, μ: 419880, ~: 441076)
+Test result: ok. 17 passed; 0 failed; finished in 50.81s
+```
 ## Test deploy
 ```bash
 forge script script/Deploy.s.sol:DeployScript --rpc-url $ETH_RPC_URL

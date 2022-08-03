@@ -360,47 +360,50 @@ library SplitOrderLibrary {
         uint256 length = path.length;
         if (length < 2) revert InvalidPath();
         swaps = new Swap[](_dec(length));
-        // swaps[_dec(_dec(length))].amountOut = amountOut;
-        for (uint256 i = _dec(_dec(length)); _isNonZero(i); i = _dec(i)) {
+        for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
             if (i < _dec(length))
-                amountOut = swaps[_inc(i)].amountIn0 + swaps[_inc(i)].amountIn1; // gather split swap amounts
+                amountOut = swaps[i].amountIn0 + swaps[i].amountIn1; // gather split swap amounts
             {
                 (address token0, address token1) = sortTokens(
                     path[_dec(i)],
                     path[i]
                 );
-                swaps[i].pair0 = _asmPairFor(SUSHI_FACTORY, token0, token1);
-                swaps[i].pair1 = _asmPairFor(factory1, token0, token1);
-                swaps[i].isReverse = path[i] == token1;
+                swaps[_dec(i)].pair0 = _asmPairFor(
+                    SUSHI_FACTORY,
+                    token0,
+                    token1
+                );
+                swaps[_dec(i)].pair1 = _asmPairFor(factory1, token0, token1);
+                swaps[_dec(i)].isReverse = path[i] == token0;
             }
-            swaps[i].tokenIn = path[i];
-            swaps[i].tokenOut = path[_inc(i)];
+            swaps[_dec(i)].tokenIn = path[_dec(i)];
+            swaps[_dec(i)].tokenOut = path[i];
             uint256 reserveIn0;
             uint256 reserveOut0;
             uint256 reserveIn1;
             uint256 reserveOut1;
             {
                 (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
-                    swaps[i].pair0
+                    swaps[_dec(i)].pair0
                 ).getReserves();
-                (reserveIn0, reserveOut0) = swaps[i].isReverse
+                (reserveIn0, reserveOut0) = swaps[_dec(i)].isReverse
                     ? (reserve1, reserve0)
                     : (reserve0, reserve1);
-                (reserve0, reserve1, ) = IUniswapV2Pair(swaps[i].pair1)
+                (reserve0, reserve1, ) = IUniswapV2Pair(swaps[_dec(i)].pair1)
                     .getReserves();
-                (reserveIn1, reserveOut1) = swaps[i].isReverse
+                (reserveIn1, reserveOut1) = swaps[_dec(i)].isReverse
                     ? (reserve1, reserve0)
                     : (reserve0, reserve1);
             }
             // find optimal route
             (
-                swaps[i].amountIn0,
-                swaps[i].amountOut0,
-                swaps[i].amountIn1,
-                swaps[i].amountOut1
+                swaps[_dec(i)].amountIn0,
+                swaps[_dec(i)].amountOut0,
+                swaps[_dec(i)].amountIn1,
+                swaps[_dec(i)].amountOut1
             ) = _optimalRouteIn(
                 weth,
-                swaps[i].tokenIn,
+                swaps[_dec(i)].tokenIn,
                 amountOut,
                 reserveIn0,
                 reserveOut0,
@@ -500,13 +503,13 @@ library SplitOrderLibrary {
             reserveOut1
         );
         if (amount0 < amountIn - MINIMUM_LIQUIDITY) {
-            reserveIn0 = reserveIn0 + amount0;
-            reserveOut0 =
-                reserveOut0 -
-                getAmountOut(amount0, reserveIn0, reserveOut0);
+            // reserveOut0 =
+            //     reserveOut0 -
+            //     getAmountOut(amount0, reserveIn0, reserveOut0);
+            // reserveIn0 = reserveIn0 + amount0;
             uint256 amountInFirstPair = amount0 +
-                ((amountIn - amount0) * reserveIn0) /
-                (reserveIn0 + reserveIn1);
+                ((amountIn - amount0) * (reserveIn0 + amount0)) /
+                (reserveIn0 + amount0 + reserveIn1);
             uint256 amountOutFirstPair = getAmountOut(
                 amountInFirstPair,
                 reserveIn0,
@@ -555,9 +558,13 @@ library SplitOrderLibrary {
             uint256 amountOut1
         )
     {
-        uint256 uniAmountIn = getAmountIn(amountOut, reserveIn1, reserveOut1);
-        uint256 sushiAmountIn = getAmountIn(amountOut, reserveIn0, reserveOut0);
-        if (uniAmountIn > sushiAmountIn) {
+        uint256 uniAmountIn;
+        uint256 sushiAmountIn;
+        if (_isNonZero(reserveOut1))
+            uniAmountIn = getAmountIn(amountOut, reserveIn1, reserveOut1);
+        if (_isNonZero(reserveOut0))
+            sushiAmountIn = getAmountIn(amountOut, reserveIn0, reserveOut0);
+        if (uniAmountIn > sushiAmountIn && _isNonZero(sushiAmountIn)) {
             // sushi (dex0) better price
             amountOut0 = amountOut;
             amountIn0 = sushiAmountIn;
@@ -574,13 +581,13 @@ library SplitOrderLibrary {
                     reserveOut1
                 );
             }
-        } else {
+        } else if (_isNonZero(uniAmountIn)) {
             // uni (dex1) better price
             amountIn1 = uniAmountIn;
             amountOut1 = amountOut;
             if (_isNonZero(sushiAmountIn)) {
                 // split route
-                (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRoute(
+                (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRouteIn(
                     weth,
                     tokenIn,
                     amountOut,
@@ -622,14 +629,21 @@ library SplitOrderLibrary {
             reserveIn1,
             reserveOut1
         );
-        if (amount0 < amountInOnePair - MINIMUM_LIQUIDITY) {
-            reserveIn0 = reserveIn0 + amount0;
-            reserveOut0 =
-                reserveOut0 -
-                getAmountOut(amount0, reserveIn0, reserveOut0);
-            uint256 amountInFirstPair = amount0 +
-                ((amountInOnePair - amount0) * reserveIn0) /
-                (reserveIn0 + reserveIn1);
+        if (
+            _isNonZero(amount0) && amount0 < amountInOnePair - MINIMUM_LIQUIDITY
+        ) {
+            // reserveOut0 =
+            //     reserveOut0 -
+            //     getAmountOut(amount0, reserveIn0, reserveOut0);
+            // reserveIn0 = reserveIn0 + amount0;
+            uint256 amountInFirstPair;
+            unchecked {
+                amountInFirstPair =
+                    amount0 +
+                    ((amountInOnePair - amount0) * (reserveIn0 + amount0)) /
+                    (reserveIn0 + amount0 + reserveIn1);
+            }
+
             uint256 amountOutFirstPair = getAmountOut(
                 amountInFirstPair,
                 reserveIn0,
