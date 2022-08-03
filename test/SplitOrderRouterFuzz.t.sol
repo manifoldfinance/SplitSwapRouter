@@ -31,6 +31,211 @@ contract SplitOrderRouterFuzzTest is DSTest {
         router = new SplitOrderRouter();
     }
 
+    receive() external payable {}
+
+    function testQuote(
+        uint112 amountA,
+        uint112 reserveA,
+        uint112 reserveB
+    ) external {
+        vm.assume(amountA > 1000);
+        vm.assume(reserveA > 1000);
+        vm.assume(reserveB > reserveA);
+        assertGe(router.quote(amountA, reserveA, reserveB), routerOld.quote(amountA, reserveA, reserveB));
+    }
+
+    function testGetAmountOut(
+        uint112 amountIn,
+        uint112 reserveIn,
+        uint112 reserveOut
+    ) external {
+        vm.assume(amountIn > 1000);
+        vm.assume(reserveIn > 1000);
+        vm.assume(reserveOut > reserveIn);
+        assertGe(
+            router.getAmountOut(amountIn, reserveIn, reserveOut),
+            routerOld.getAmountOut(amountIn, reserveIn, reserveOut)
+        );
+    }
+
+    function testGetAmountIn(
+        uint112 amountOut,
+        uint112 reserveIn,
+        uint112 reserveOut
+    ) external {
+        vm.assume(amountOut > 1000);
+        vm.assume(reserveIn > 1000);
+        vm.assume(reserveOut > reserveIn);
+        vm.assume(reserveOut > amountOut);
+        assertLe(
+            router.getAmountIn(amountOut, reserveIn, reserveOut),
+            routerOld.getAmountIn(amountOut, reserveIn, reserveOut)
+        );
+    }
+
+    function testGetAmountsOut(uint112 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+        uint256[] memory amounts = router.getAmountsOut(amountIn, path);
+        uint256[] memory amounts2 = routerOld.getAmountsOut(amountIn, path);
+        assertGe(amounts[1], amounts2[1]);
+    }
+
+    function testGetAmountsIn(uint112 amountOut) external {
+        vm.assume(amountOut > 1000000);
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountOut < reserveUsdc); // max USDC reserve
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+        uint256[] memory amounts = router.getAmountsIn(amountOut, path);
+        uint256[] memory amounts2 = routerOld.getAmountsIn(amountOut, path);
+        assertLe(amounts[0], amounts2[0]);
+        // assertGt(amounts[0], 0);
+    }
+
+    function testSwapExactETHForTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+        uint256[] memory amounts2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+    }
+
+    function testSwapETHForExactTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amounts = router.swapETHForExactTokens{ value: amountIn }(
+            router.getAmountsOut(amountIn, path)[1],
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amounts2 = routerOld.swapETHForExactTokens{ value: amountIn }(
+            routerOld.getAmountsOut(amountIn, path)[1],
+            path,
+            to,
+            deadline
+        );
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+    }
+
+    function testSwapExactTokensForETH(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        path[0] = USDC;
+        path[1] = WETH;
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
+        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        uint256[] memory amounts = router.swapExactTokensForETH(
+            amountsUSDC[amountsUSDC.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amounts2 = routerOld.swapExactTokensForETH(
+            amountsUSDC2[amountsUSDC2.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+    }
+
+    function testSwapTokensForExactETH(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        path[0] = USDC;
+        path[1] = WETH;
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
+        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        uint256[] memory amounts = router.swapTokensForExactETH(
+            router.getAmountsOut(amountsUSDC[amountsUSDC.length - 1], path)[1],
+            amountsUSDC[amountsUSDC.length - 1],
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amounts2 = routerOld.swapTokensForExactETH(
+            routerOld.getAmountsOut(amountsUSDC2[amountsUSDC2.length - 1], path)[1],
+            amountsUSDC2[amountsUSDC2.length - 1],
+            path,
+            to,
+            deadline
+        );
+
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+    }
+
     function testSwapExactTokensForTokens(uint256 amountIn) external {
         vm.assume(amountIn > 100000000000000000); // eth amount
         vm.assume(amountIn < address(this).balance / 4);
@@ -71,5 +276,336 @@ contract SplitOrderRouterFuzzTest is DSTest {
         );
 
         assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+    }
+
+    function testSwapTokensForExactTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        path[0] = USDC;
+        path[1] = DAI;
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
+        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        uint256[] memory amounts = router.swapTokensForExactTokens(
+            router.getAmountsOut(amountsUSDC[amountsUSDC.length - 1], path)[1],
+            amountsUSDC[amountsUSDC.length - 1],
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amounts2 = routerOld.swapTokensForExactTokens(
+            routerOld.getAmountsOut(amountsUSDC2[amountsUSDC2.length - 1], path)[1],
+            amountsUSDC2[amountsUSDC2.length - 1],
+            path,
+            to,
+            deadline
+        );
+
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 100);
+    }
+
+    function testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256 balanceBefore = usdc.balanceOf(address(this));
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+        uint256 balanceMid = usdc.balanceOf(address(this));
+        routerOld.swapExactETHForTokensSupportingFeeOnTransferTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        assertGe(balanceMid - balanceBefore, usdc.balanceOf(address(this)) - balanceMid);
+    }
+
+    function testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        path[0] = USDC;
+        path[1] = WETH;
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
+        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        uint256 balanceBefore = address(this).balance;
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            amountsUSDC[amountsUSDC.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256 balanceMid = address(this).balance;
+        routerOld.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            amountsUSDC2[amountsUSDC2.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+
+        assertGe(balanceMid - balanceBefore, address(this).balance - balanceMid);
+    }
+
+    function testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        // ERC20(path[0]).approve(address(router), amountIn);
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        path[0] = USDC;
+        path[1] = DAI;
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
+        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        uint256 balanceBefore = dai.balanceOf(address(this));
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountsUSDC[amountsUSDC.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        uint256 balanceMid = dai.balanceOf(address(this));
+        routerOld.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountsUSDC2[amountsUSDC2.length - 1],
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+
+        assertGe(balanceMid - balanceBefore, dai.balanceOf(address(this)) - balanceMid);
+    }
+
+    function testLiquidityEth(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        // uint256 amountInToken = 4000000000;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: 2 * amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        usdc.approve(address(router), amounts[amounts.length - 1] / 2);
+        (uint256 amountToken, uint256 amountETH, uint256 liquidity) = router.addLiquidityETH{
+            value: (amountIn * 10) / 11
+        }(USDC, amounts[amounts.length - 1] / 2, 0, amountIn / 2, address(this), block.timestamp);
+        usdc.approve(address(routerOld), amounts[amounts.length - 1] / 2);
+        (uint256 amountToken2, uint256 amountETH2, uint256 liquidity2) = routerOld.addLiquidityETH{
+            value: (amountIn * 10) / 11
+        }(USDC, amounts[amounts.length - 1] / 2, 0, amountIn / 2, address(this), block.timestamp);
+        assertGe(amountToken, amountToken2);
+        assertGe(amountETH, amountETH2);
+        assertGe(liquidity, liquidity2);
+
+        usdWeth.approve(address(routerOld), liquidity2);
+        (amountToken2, amountETH2) = routerOld.removeLiquidityETH(
+            USDC,
+            liquidity2,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+        usdWeth.approve(address(router), liquidity);
+        (amountToken, amountETH) = router.removeLiquidityETH(USDC, liquidity, 0, 0, address(this), block.timestamp);
+
+        assertGe(amountToken, amountToken2);
+        assertGe(amountETH, amountETH2);
+    }
+
+    function testLiquidityTokens(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        // uint256 amountInToken = 4000000000;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: 2 * amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        path[0] = WETH;
+        path[1] = DAI;
+        uint256[] memory amountsDAI = router.swapExactETHForTokens{ value: 2 * amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1] / 2);
+        dai.approve(address(router), amountsDAI[amountsDAI.length - 1] / 2);
+        (uint256 amountToken, uint256 amountETH, uint256 liquidity) = router.addLiquidity(
+            DAI,
+            USDC,
+            amountsDAI[amountsDAI.length - 1] / 2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+        usdc.approve(address(routerOld), amountsUSDC[amountsUSDC.length - 1] / 2);
+        dai.approve(address(routerOld), amountsDAI[amountsDAI.length - 1] / 2);
+        (uint256 amountToken2, uint256 amountETH2, uint256 liquidity2) = routerOld.addLiquidity(
+            DAI,
+            USDC,
+            amountsDAI[amountsDAI.length - 1] / 2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+        assertGe(amountToken, amountToken2);
+        assertGe(amountETH, amountETH2);
+        assertGe(liquidity, liquidity2);
+
+        daiUsdc.approve(address(routerOld), liquidity2);
+        (amountToken2, amountETH2) = routerOld.removeLiquidity(
+            DAI,
+            USDC,
+            liquidity2,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+        daiUsdc.approve(address(router), liquidity);
+        (amountToken, amountETH) = router.removeLiquidity(DAI, USDC, liquidity, 0, 0, address(this), block.timestamp);
+
+        assertGe(amountToken, amountToken2);
+        assertGe(amountETH, amountETH2);
+    }
+
+    function testLiquidityEthSupportingFeeOnTransfer(uint256 amountIn) external {
+        vm.assume(amountIn > 100000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        // uint256 amountIn = 1000000000000000000;
+        // uint256 amountInToken = 4000000000;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: 2 * amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        usdc.approve(address(router), amounts[amounts.length - 1] / 2);
+        (uint256 amountToken, uint256 amountETH, uint256 liquidity) = router.addLiquidityETH{
+            value: (amountIn * 10) / 11
+        }(USDC, amounts[amounts.length - 1] / 2, 0, amountIn / 2, address(this), block.timestamp);
+        usdc.approve(address(routerOld), amounts[amounts.length - 1] / 2);
+        (, uint256 amountETH2, uint256 liquidity2) = routerOld.addLiquidityETH{ value: (amountIn * 10) / 11 }(
+            USDC,
+            amounts[amounts.length - 1] / 2,
+            0,
+            amountIn / 2,
+            address(this),
+            block.timestamp
+        );
+        // assertGe(amountToken, amountToken2);
+        // assertGe(amountETH, amountETH2);
+        // assertGe(liquidity, liquidity2);
+
+        usdWeth.approve(address(routerOld), liquidity2);
+        (amountETH2) = routerOld.removeLiquidityETHSupportingFeeOnTransferTokens(
+            USDC,
+            liquidity2,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+        usdWeth.approve(address(router), liquidity);
+        (amountETH) = router.removeLiquidityETHSupportingFeeOnTransferTokens(
+            USDC,
+            liquidity,
+            amountToken / 4,
+            amountETH / 4,
+            address(this),
+            block.timestamp
+        );
+
+        // assertGe(amountToken, amountToken2);
+        assertGe(amountETH, amountETH2);
     }
 }

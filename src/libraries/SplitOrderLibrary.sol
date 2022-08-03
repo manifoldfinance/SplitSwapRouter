@@ -2,18 +2,18 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 /**
-Optimal MEV library to support OpenMevRouter
+Optimal split order library to support SplitOrderRouter
 Based on UniswapV2Library: https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol
 */
 
 import "../interfaces/IUniswapV2Pair.sol";
 import "../interfaces/IUniswapV2Factory.sol";
-import "./Uint512.sol";
+import "./Babylonian.sol";
 
-/// @title OpenMevLibrary
+/// @title SplitOrderLibrary
 /// @author Sandy Bradley <sandy@manifoldx.com>, Sam Bacha <sam@manifoldfinance.com>
-/// @notice Optimal MEV library to support OpenMevRouter
-library OpenMevLibrary {
+/// @notice Optimal MEV library to support SplitOrderRouter
+library SplitOrderLibrary {
     error Overflow();
     error ZeroAmount();
     error InvalidPath();
@@ -23,14 +23,14 @@ library OpenMevLibrary {
 
     struct Swap {
         bool isReverse;
-        bool isBackrunnable;
-        uint112 reserveIn;
-        uint112 reserveOut;
         address tokenIn;
         address tokenOut;
-        address pair;
-        uint256 amountIn;
-        uint256 amountOut;
+        address pair0;
+        address pair1;
+        uint256 amountIn0;
+        uint256 amountOut0;
+        uint256 amountIn1;
+        uint256 amountOut1;
     }
 
     address internal constant SUSHI_FACTORY =
@@ -44,6 +44,7 @@ library OpenMevLibrary {
     uint256 internal constant FF_BACKUP_FACTORY =
         0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
+    uint256 internal constant EST_SWAP_GAS_USED = 100000;
 
     /// @notice Retreive factoryCodeHash from factory address
     /// @param factory Dex factory
@@ -77,8 +78,8 @@ library OpenMevLibrary {
     {
         if (tokenA == tokenB) revert IdenticalAddresses();
         bool isZeroAddress;
-        /// @solidity memory-safe-assembly
-        assembly {
+
+        assembly ("memory-safe") {
             switch lt(shl(96, tokenA), shl(96, tokenB)) // sort tokens
             case 0 {
                 token0 := tokenB
@@ -130,7 +131,7 @@ library OpenMevLibrary {
         //       keccak256(abi.encodePacked(token0, token1)),
         //       bytes32(UNISWAP_PAIR_INIT_CODE_HASH),
         //   )));
-        assembly {
+        assembly ("memory-safe") {
             let ptr := mload(0x40) // get free memory pointer
             mstore(ptr, shl(96, token0))
             mstore(add(ptr, 0x14), shl(96, token1))
@@ -256,52 +257,67 @@ library OpenMevLibrary {
     }
 
     /// @notice Fetches swap data for each pair and amounts given a desired output and path
-    /// @param factory Factory address for dex
+    /// @param factory1 Backup Factory address for dex
     /// @param amountIn Amount in for first token in path
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsOut(
-        address factory,
+        address weth,
+        address factory1,
         uint256 amountIn,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
         if (length < 2) revert InvalidPath();
         swaps = new Swap[](_dec(length));
-        swaps[0].amountIn = amountIn;
         for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (address tokenIn, address tokenOut) = (path[i], path[_inc(i)]);
-            (address token0, address token1) = sortTokens(tokenIn, tokenOut);
-            bool isReverse = tokenOut == token0;
-            address pair = _asmPairFor(factory, token0, token1);
-            swaps[i].isReverse = isReverse;
-            swaps[i].tokenIn = tokenIn;
-            swaps[i].tokenOut = tokenOut;
-            swaps[i].pair = pair;
-            uint112 reserveIn;
-            uint112 reserveOut;
+            if (_isNonZero(i))
+                amountIn =
+                    swaps[_dec(i)].amountOut0 +
+                    swaps[_dec(i)].amountOut1; // gather split swap amounts
             {
-                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                (address token0, address token1) = sortTokens(
+                    path[i],
+                    path[_inc(i)]
+                );
+                swaps[i].pair0 = _asmPairFor(SUSHI_FACTORY, token0, token1);
+                swaps[i].pair1 = _asmPairFor(factory1, token0, token1);
+                swaps[i].isReverse = path[i] == token1;
+            }
+            swaps[i].tokenIn = path[i];
+            swaps[i].tokenOut = path[_inc(i)];
+            uint256 reserveIn0;
+            uint256 reserveOut0;
+            uint256 reserveIn1;
+            uint256 reserveOut1;
+            {
+                (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
+                    swaps[i].pair0
+                ).getReserves();
+                (reserveIn0, reserveOut0) = swaps[i].isReverse
+                    ? (reserve1, reserve0)
+                    : (reserve0, reserve1);
+                (reserve0, reserve1, ) = IUniswapV2Pair(swaps[i].pair1)
                     .getReserves();
-                (reserveIn, reserveOut) = isReverse
+                (reserveIn1, reserveOut1) = swaps[i].isReverse
                     ? (reserve1, reserve0)
                     : (reserve0, reserve1);
             }
-            swaps[i].reserveIn = reserveIn;
-            swaps[i].reserveOut = reserveOut;
-            swaps[i].amountOut = getAmountOut(
-                swaps[i].amountIn,
-                reserveIn,
-                reserveOut
+            // find optimal route
+            (
+                swaps[i].amountIn0,
+                swaps[i].amountOut0,
+                swaps[i].amountIn1,
+                swaps[i].amountOut1
+            ) = _optimalRoute(
+                weth,
+                swaps[i].tokenOut,
+                amountIn,
+                reserveIn0,
+                reserveOut0,
+                reserveIn1,
+                reserveOut1
             );
-            unchecked {
-                swaps[i].isBackrunnable = _isNonZero(
-                    (1000 * swaps[i].amountIn) / reserveIn
-                );
-            }
-            // assign next amount in as last amount out
-            if (i < _dec(_dec(length)))
-                swaps[_inc(i)].amountIn = swaps[i].amountOut;
         }
     }
 
@@ -331,193 +347,358 @@ library OpenMevLibrary {
     }
 
     /// @notice Fetches swap data for each pair and amounts given a desired output and path
-    /// @param factory Factory address for dex
+    /// @param factory1 Factory address for dex
     /// @param amountOut Amount out for last token in path
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsIn(
-        address factory,
+        address weth,
+        address factory1,
         uint256 amountOut,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
         if (length < 2) revert InvalidPath();
         swaps = new Swap[](_dec(length));
-        swaps[_dec(_dec(length))].amountOut = amountOut;
-        for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (address tokenIn, address tokenOut) = (path[_dec(i)], path[i]);
-            (address token0, address token1) = sortTokens(tokenIn, tokenOut);
-            address pair = _asmPairFor(factory, token0, token1);
-            bool isReverse = tokenOut == token0;
-            swaps[_dec(i)].isReverse = isReverse;
-            swaps[_dec(i)].tokenIn = tokenIn;
-            swaps[_dec(i)].tokenOut = tokenOut;
-            swaps[_dec(i)].pair = pair;
-            uint112 reserveIn;
-            uint112 reserveOut;
+        // swaps[_dec(_dec(length))].amountOut = amountOut;
+        for (uint256 i = _dec(_dec(length)); _isNonZero(i); i = _dec(i)) {
+            if (i < _dec(length))
+                amountOut = swaps[_inc(i)].amountIn0 + swaps[_inc(i)].amountIn1; // gather split swap amounts
             {
-                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                (address token0, address token1) = sortTokens(
+                    path[_dec(i)],
+                    path[i]
+                );
+                swaps[i].pair0 = _asmPairFor(SUSHI_FACTORY, token0, token1);
+                swaps[i].pair1 = _asmPairFor(factory1, token0, token1);
+                swaps[i].isReverse = path[i] == token1;
+            }
+            swaps[i].tokenIn = path[i];
+            swaps[i].tokenOut = path[_inc(i)];
+            uint256 reserveIn0;
+            uint256 reserveOut0;
+            uint256 reserveIn1;
+            uint256 reserveOut1;
+            {
+                (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
+                    swaps[i].pair0
+                ).getReserves();
+                (reserveIn0, reserveOut0) = swaps[i].isReverse
+                    ? (reserve1, reserve0)
+                    : (reserve0, reserve1);
+                (reserve0, reserve1, ) = IUniswapV2Pair(swaps[i].pair1)
                     .getReserves();
-                (reserveIn, reserveOut) = isReverse
+                (reserveIn1, reserveOut1) = swaps[i].isReverse
                     ? (reserve1, reserve0)
                     : (reserve0, reserve1);
             }
-            swaps[_dec(i)].amountIn = getAmountIn(
-                swaps[_dec(i)].amountOut,
-                reserveIn,
-                reserveOut
+            // find optimal route
+            (
+                swaps[i].amountIn0,
+                swaps[i].amountOut0,
+                swaps[i].amountIn1,
+                swaps[i].amountOut1
+            ) = _optimalRouteIn(
+                weth,
+                swaps[i].tokenIn,
+                amountOut,
+                reserveIn0,
+                reserveOut0,
+                reserveIn1,
+                reserveOut1
             );
-            unchecked {
-                swaps[_dec(i)].isBackrunnable = _isNonZero(
-                    (1000 * swaps[_dec(i)].amountOut) / reserveOut
-                );
-            }
-            // assign next amount out as last amount in
-            if (i > 1) swaps[i - 2].amountOut = swaps[_dec(i)].amountIn;
         }
     }
 
-    /// @notice Internal call for optimal coefficients
-    /// @dev Unchecked used to save gas with internal checks for overflows
-    /// @param reserve0Token0 Reserve for first pool for first token
-    /// @param reserve0Token1 Reserve for first pool for second token
-    /// @param reserve1Token0 Reserve for second pool for first token
-    /// @param reserve1Token1 Reserve for second pool for second token
-    /// @return Cb Coefficient for Cb
-    /// @return Cf Coefficient for Cf
-    /// @return Cg Coefficient for Cg
-    function calcCoeffs(
-        uint112 reserve0Token0,
-        uint112 reserve0Token1,
-        uint112 reserve1Token0,
-        uint112 reserve1Token1
+    function _optimalRoute(
+        address weth,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 reserveIn0,
+        uint256 reserveOut0,
+        uint256 reserveIn1,
+        uint256 reserveOut1
     )
         internal
-        pure
+        view
         returns (
-            uint256 Cb,
-            uint256 Cf,
-            uint256 Cg
+            uint256 amountIn0,
+            uint256 amountOut0,
+            uint256 amountIn1,
+            uint256 amountOut1
         )
     {
-        // save gas with unchecked ... perform internal overflow checks
-        unchecked {
-            Cb = uint256(reserve1Token1) * uint256(reserve0Token0) * 1000000;
-            if (
-                (uint256(reserve0Token0) * 1000000) ==
-                Cb / uint256(reserve1Token1)
-            ) {
-                uint256 Ca = uint256(reserve1Token0) *
-                    uint256(reserve0Token1) *
-                    994009;
-                if (
-                    (uint256(reserve0Token1) * 994009) ==
-                    Ca / uint256(reserve1Token0)
-                ) {
-                    if (Ca > Cb) {
-                        Cf = Ca - Cb;
-                        Cg =
-                            (uint256(reserve1Token1) * 997000) +
-                            (uint256(reserve0Token1) * 994009);
-                    }
-                }
+        uint256 uniAmountOut = getAmountOut(amountIn, reserveIn1, reserveOut1);
+        uint256 sushiAmountOut = getAmountOut(
+            amountIn,
+            reserveIn0,
+            reserveOut0
+        );
+        if (uniAmountOut < sushiAmountOut) {
+            // sushi (dex0) better price
+            amountIn0 = amountIn;
+            amountOut0 = sushiAmountOut;
+            if (_isNonZero(uniAmountOut)) {
+                // split route
+                (amountIn0, amountOut0, amountIn1, amountOut1) = _splitRoute(
+                    weth,
+                    tokenOut,
+                    amountIn,
+                    sushiAmountOut,
+                    reserveIn0,
+                    reserveOut0,
+                    reserveIn1,
+                    reserveOut1
+                );
+            }
+        } else {
+            // uni (dex1) better price
+            amountIn1 = amountIn;
+            amountOut1 = uniAmountOut;
+            if (_isNonZero(sushiAmountOut)) {
+                // split route
+                (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRoute(
+                    weth,
+                    tokenOut,
+                    amountIn,
+                    uniAmountOut,
+                    reserveIn1,
+                    reserveOut1,
+                    reserveIn0,
+                    reserveOut0
+                );
             }
         }
     }
 
-    /// @notice Internal call for optimal returns
-    /// @dev Unchecked used to save gas. Values already checked.
-    /// @param Cb Coefficient for Cb
-    /// @param Cf Coefficient for Cf
-    /// @param Cg Coefficient for Cg
-    /// @param amountIn Optimal amount in
-    /// @return optimalReturns Optimal return amount
-    function calcReturns(
-        uint256 Cb,
-        uint256 Cf,
-        uint256 Cg,
-        uint256 amountIn
+    function _splitRoute(
+        address weth,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutOnePair,
+        uint256 reserveIn0,
+        uint256 reserveOut0,
+        uint256 reserveIn1,
+        uint256 reserveOut1
+    )
+        internal
+        view
+        returns (
+            uint256 amountIn0,
+            uint256 amountOut0,
+            uint256 amountIn1,
+            uint256 amountOut1
+        )
+    {
+        // set single swap at best rate as default
+        amountIn0 = amountIn;
+        amountOut0 = amountOutOnePair;
+        uint256 amount0 = _amountToSyncPrices(
+            reserveIn0,
+            reserveOut0,
+            reserveIn1,
+            reserveOut1
+        );
+        if (amount0 < amountIn - MINIMUM_LIQUIDITY) {
+            reserveIn0 = reserveIn0 + amount0;
+            reserveOut0 =
+                reserveOut0 -
+                getAmountOut(amount0, reserveIn0, reserveOut0);
+            uint256 amountInFirstPair = amount0 +
+                ((amountIn - amount0) * reserveIn0) /
+                (reserveIn0 + reserveIn1);
+            uint256 amountOutFirstPair = getAmountOut(
+                amountInFirstPair,
+                reserveIn0,
+                reserveOut0
+            );
+            uint256 amountOutSecondPair = getAmountOut(
+                amountIn - amountInFirstPair,
+                reserveIn1,
+                reserveOut1
+            );
+            if (
+                _isNonZero(
+                    amountOutFirstPair + amountOutSecondPair - amountOutOnePair
+                ) &&
+                _wethAmount(
+                    weth,
+                    tokenOut,
+                    amountOutFirstPair + amountOutSecondPair - amountOutOnePair
+                ) >
+                block.basefee * EST_SWAP_GAS_USED
+            ) {
+                // split route better than extra gas cost
+                amountIn0 = amountInFirstPair;
+                amountIn1 = amountIn - amountInFirstPair;
+                amountOut0 = amountOutFirstPair;
+                amountOut1 = amountOutSecondPair;
+            }
+        }
+    }
+
+    function _optimalRouteIn(
+        address weth,
+        address tokenIn,
+        uint256 amountOut,
+        uint256 reserveIn0,
+        uint256 reserveOut0,
+        uint256 reserveIn1,
+        uint256 reserveOut1
+    )
+        internal
+        view
+        returns (
+            uint256 amountIn0,
+            uint256 amountOut0,
+            uint256 amountIn1,
+            uint256 amountOut1
+        )
+    {
+        uint256 uniAmountIn = getAmountIn(amountOut, reserveIn1, reserveOut1);
+        uint256 sushiAmountIn = getAmountIn(amountOut, reserveIn0, reserveOut0);
+        if (uniAmountIn > sushiAmountIn) {
+            // sushi (dex0) better price
+            amountOut0 = amountOut;
+            amountIn0 = sushiAmountIn;
+            if (_isNonZero(uniAmountIn)) {
+                // split route
+                (amountIn0, amountOut0, amountIn1, amountOut1) = _splitRouteIn(
+                    weth,
+                    tokenIn,
+                    amountOut,
+                    sushiAmountIn,
+                    reserveIn0,
+                    reserveOut0,
+                    reserveIn1,
+                    reserveOut1
+                );
+            }
+        } else {
+            // uni (dex1) better price
+            amountIn1 = uniAmountIn;
+            amountOut1 = amountOut;
+            if (_isNonZero(sushiAmountIn)) {
+                // split route
+                (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRoute(
+                    weth,
+                    tokenIn,
+                    amountOut,
+                    uniAmountIn,
+                    reserveIn1,
+                    reserveOut1,
+                    reserveIn0,
+                    reserveOut0
+                );
+            }
+        }
+    }
+
+    function _splitRouteIn(
+        address weth,
+        address tokenIn,
+        uint256 amountOut,
+        uint256 amountInOnePair,
+        uint256 reserveIn0,
+        uint256 reserveOut0,
+        uint256 reserveIn1,
+        uint256 reserveOut1
+    )
+        internal
+        view
+        returns (
+            uint256 amountIn0,
+            uint256 amountOut0,
+            uint256 amountIn1,
+            uint256 amountOut1
+        )
+    {
+        // set single swap at best rate as default
+        amountIn0 = amountInOnePair;
+        amountOut0 = amountOut;
+        uint256 amount0 = _amountToSyncPrices(
+            reserveIn0,
+            reserveOut0,
+            reserveIn1,
+            reserveOut1
+        );
+        if (amount0 < amountInOnePair - MINIMUM_LIQUIDITY) {
+            reserveIn0 = reserveIn0 + amount0;
+            reserveOut0 =
+                reserveOut0 -
+                getAmountOut(amount0, reserveIn0, reserveOut0);
+            uint256 amountInFirstPair = amount0 +
+                ((amountInOnePair - amount0) * reserveIn0) /
+                (reserveIn0 + reserveIn1);
+            uint256 amountOutFirstPair = getAmountOut(
+                amountInFirstPair,
+                reserveIn0,
+                reserveOut0
+            );
+            uint256 amountOutSecondPair = amountOut - amountOutFirstPair;
+            uint256 amountInSecondPair = getAmountIn(
+                amountOutSecondPair,
+                reserveIn1,
+                reserveOut1
+            );
+            if (
+                _isNonZero(
+                    amountInOnePair - amountInFirstPair - amountInSecondPair
+                ) &&
+                _wethAmount(
+                    weth,
+                    tokenIn,
+                    amountInOnePair - amountInFirstPair - amountInSecondPair
+                ) >
+                block.basefee * EST_SWAP_GAS_USED
+            ) {
+                // split route better than extra gas cost
+                amountIn0 = amountInFirstPair;
+                amountIn1 = amountInSecondPair;
+                amountOut0 = amountOutFirstPair;
+                amountOut1 = amountOutSecondPair;
+            }
+        }
+    }
+
+    function _amountToSyncPrices(
+        uint256 x1,
+        uint256 y1,
+        uint256 x2,
+        uint256 y2
     ) internal pure returns (uint256) {
         unchecked {
-            return (amountIn * (Cf - (Cg * amountIn))) / (Cb + amountIn * Cg);
+            return
+                (x1 *
+                    (Babylonian.sqrt(9 + ((1000000 * x2 * y1) / (y2 * x1))) -
+                        1997)) / 1994;
         }
     }
 
-    /// @notice Optimal amount in and return for back-run
-    /// @param pair0 Pair for first back-run swap
-    /// @param pair1 Pair for second back-run swap
-    /// @param isReverse True if sorted tokens are opposite to input, output order
-    /// @param isAaveAsset True if first token is an Aave asset, otherwise false
-    /// @param contractAssetBalance Contract balance for first token
-    /// @return optimalAmount Optimal amount for back-run
-    /// @return optimalReturns Optimal return for back-run
-    function getOptimalAmounts(
-        address pair0,
-        address pair1,
-        bool isReverse,
-        bool isAaveAsset,
-        uint256 contractAssetBalance,
-        uint256 bentoBalance
-    ) internal view returns (uint256 optimalAmount, uint256 optimalReturns) {
-        uint256 Cb;
-        uint256 Cf;
-        uint256 Cg;
+    /// @notice Calculate eth value of a token amount
+    /// @param token Address of token
+    /// @param amount Amount of token
+    /// @return eth value
+    function _wethAmount(
+        address weth,
+        address token,
+        uint256 amount
+    ) internal view returns (uint256) {
+        if (token == weth) return amount;
+        address pair;
+        bool isReverse;
         {
-            (uint112 pair0Reserve0, uint112 pair0Reserve1, ) = IUniswapV2Pair(
-                pair0
-            ).getReserves();
-            (uint112 pair1Reserve0, uint112 pair1Reserve1, ) = IUniswapV2Pair(
-                pair1
-            ).getReserves();
-            (Cb, Cf, Cg) = isReverse
-                ? calcCoeffs(
-                    pair0Reserve0,
-                    pair0Reserve1,
-                    pair1Reserve0,
-                    pair1Reserve1
-                )
-                : calcCoeffs(
-                    pair0Reserve1,
-                    pair0Reserve0,
-                    pair1Reserve1,
-                    pair1Reserve0
-                );
+            (address token0, address token1) = sortTokens(token, weth);
+            pair = _asmPairFor(SUSHI_FACTORY, token0, token1);
+            isReverse = weth == token0;
         }
-        if (_isNonZero(Cf) && _isNonZero(Cg)) {
-            uint256 numerator0;
-            {
-                (uint256 _bSquare0, uint256 _bSquare1) = Uint512.mul256x256(
-                    Cb,
-                    Cb
-                );
-                (uint256 _4ac0, uint256 _4ac1) = Uint512.mul256x256(Cb, Cf);
-                (uint256 _bsq4ac0, uint256 _bsq4ac1) = Uint512.add512x512(
-                    _bSquare0,
-                    _bSquare1,
-                    _4ac0,
-                    _4ac1
-                );
-                numerator0 = Uint512.sqrt512(_bsq4ac0, _bsq4ac1);
-            }
-            if (numerator0 > Cb) {
-                // save gas with unchecked. We already know amount is +ve and finite
-                unchecked {
-                    optimalAmount = (numerator0 - Cb) / Cg;
-                }
-                // adjust optimal amount for available liquidity if needed
-                if (
-                    contractAssetBalance < optimalAmount &&
-                    !isAaveAsset &&
-                    bentoBalance < optimalAmount
-                ) {
-                    if (contractAssetBalance > bentoBalance) {
-                        optimalAmount = contractAssetBalance;
-                    } else {
-                        optimalAmount = bentoBalance;
-                    }
-                }
-                optimalReturns = calcReturns(Cb, Cf, Cg, optimalAmount);
-            }
+        {
+            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
+                .getReserves();
+            (uint112 reserveIn, uint112 reserveOut) = isReverse
+                ? (reserve1, reserve0)
+                : (reserve0, reserve1);
+            return getAmountOut(amount, reserveIn, reserveOut);
         }
     }
 
@@ -525,8 +706,7 @@ library OpenMevLibrary {
     /// @notice Uint256 zero check gas saver
     /// @param value Number to check
     function _isZero(uint256 value) internal pure returns (bool boolValue) {
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             boolValue := iszero(value)
         }
     }
@@ -535,8 +715,7 @@ library OpenMevLibrary {
     /// @notice Uint256 not zero check gas saver
     /// @param value Number to check
     function _isNonZero(uint256 value) internal pure returns (bool boolValue) {
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             boolValue := iszero(iszero(value))
         }
     }
