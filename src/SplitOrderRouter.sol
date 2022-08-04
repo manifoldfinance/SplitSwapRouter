@@ -1038,7 +1038,7 @@ contract SplitOrderRouter {
         // Stack only safety
         assembly ("memory-safe") {
             result := add(i, 1)
-        } 
+        }
     }
 
     /// @custom:gas Unchecked decrement gas saver
