@@ -477,7 +477,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             }
             // V3 swaps
             for (uint256 j = 2; j < 6; j = _inc(j)) {
-                uint24 fee = SplitOrderV3Library.getFee(j);
+                uint24 fee = uint24(SplitOrderV3Library.getFee(j));
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     uint256 amountOut = _swapUniV3(
                         swaps[i].isReverse,
