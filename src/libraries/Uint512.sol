@@ -8,11 +8,7 @@ library Uint512 {
     /// @param b A uint256 representing the second factor.
     /// @return r0 The result as an uint512. r0 contains the lower bits.
     /// @return r1 The higher bits of the result.
-    function mul256x256(uint256 a, uint256 b)
-        internal
-        pure
-        returns (uint256 r0, uint256 r1)
-    {
+    function mul256x256(uint256 a, uint256 b) internal pure returns (uint256 r0, uint256 r1) {
         assembly {
             let mm := mulmod(a, b, not(0))
             r0 := mul(a, b)
@@ -52,17 +48,11 @@ library Uint512 {
 
             let xAux := x
 
-            let cmp := or(
-                gt(xAux, 0x100000000000000000000000000000000),
-                eq(xAux, 0x100000000000000000000000000000000)
-            )
+            let cmp := or(gt(xAux, 0x100000000000000000000000000000000), eq(xAux, 0x100000000000000000000000000000000))
             xAux := sar(mul(cmp, 128), xAux)
             s := shl(mul(cmp, 64), s)
 
-            cmp := or(
-                gt(xAux, 0x10000000000000000),
-                eq(xAux, 0x10000000000000000)
-            )
+            cmp := or(gt(xAux, 0x10000000000000000), eq(xAux, 0x10000000000000000))
             xAux := sar(mul(cmp, 64), xAux)
             s := shl(mul(cmp, 32), s)
 
@@ -115,60 +105,27 @@ library Uint512 {
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(a1, 0x1000000000000000000000000000000000000000000000000),
-                64
-            )
+            digits := mul(lt(a1, 0x1000000000000000000000000000000000000000000000000), 64)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(
-                    a1,
-                    0x100000000000000000000000000000000000000000000000000000000
-                ),
-                32
-            )
+            digits := mul(lt(a1, 0x100000000000000000000000000000000000000000000000000000000), 32)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(
-                    a1,
-                    0x1000000000000000000000000000000000000000000000000000000000000
-                ),
-                16
-            )
+            digits := mul(lt(a1, 0x1000000000000000000000000000000000000000000000000000000000000), 16)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(
-                    a1,
-                    0x100000000000000000000000000000000000000000000000000000000000000
-                ),
-                8
-            )
+            digits := mul(lt(a1, 0x100000000000000000000000000000000000000000000000000000000000000), 8)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(
-                    a1,
-                    0x1000000000000000000000000000000000000000000000000000000000000000
-                ),
-                4
-            )
+            digits := mul(lt(a1, 0x1000000000000000000000000000000000000000000000000000000000000000), 4)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
-            digits := mul(
-                lt(
-                    a1,
-                    0x4000000000000000000000000000000000000000000000000000000000000000
-                ),
-                2
-            )
+            digits := mul(lt(a1, 0x4000000000000000000000000000000000000000000000000000000000000000), 2)
             a1 := shl(digits, a1)
             shift := add(shift, digits)
 
@@ -194,10 +151,7 @@ library Uint512 {
             // at most floor(sqrt(2**256 - 1)) we can conclude that the nominator has at most 513 bits
             // set. An expensive 512x256 bit division can be avoided by treating the bit at position 513 manually
             let carry := shr(128, rp)
-            let x := mul(
-                carry,
-                0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-            )
+            let x := mul(carry, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
             q := add(q, div(x, denom))
             u := add(u, add(carry, mod(x, denom)))
             q := add(q, div(u, denom))
@@ -207,14 +161,10 @@ library Uint512 {
         unchecked {
             s = (sp << 128) + q;
 
-            uint256 rl = ((u << 128) |
-                (a0 & 0xffffffffffffffffffffffffffffffff));
+            uint256 rl = ((u << 128) | (a0 & 0xffffffffffffffffffffffffffffffff));
             uint256 rr = q * q;
 
-            if (
-                (q >> 128) > (u >> 128) ||
-                (((q >> 128) == (u >> 128)) && rl < rr)
-            ) {
+            if ((q >> 128) > (u >> 128) || (((q >> 128) == (u >> 128)) && rl < rr)) {
                 s = s - 1;
             }
 

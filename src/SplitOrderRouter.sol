@@ -9,7 +9,7 @@ Optimal split order router for single swaps with identical markets on uniV2 fork
 import "./ERC20.sol";
 import "./interfaces/IWETH.sol";
 import "./libraries/SplitOrderLibrary.sol";
-import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
+import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
 /// @title SplitOrderRouter
 /// @author Sandy Bradley <sandy@manifoldx.com>
@@ -34,12 +34,9 @@ contract SplitOrderRouter {
     error InsufficientOutputAmount();
     error NotYetImplemented();
 
-    bytes4 internal constant SWAP_SELECTOR =
-        bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
-    address internal constant WETH09 =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address internal constant BACKUP_FACTORY =
-        0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f; // uniswap v2 factory
+    bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
+    address internal constant WETH09 = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address internal constant BACKUP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f; // uniswap v2 factory
     uint256 internal constant EST_SWAP_GAS_USED = 150000;
     uint256 internal constant MIN_LIQUIDITY = 1000;
 
@@ -81,27 +78,14 @@ contract SplitOrderRouter {
         if (IUniswapV2Factory(factory0).getPair(tokenA, tokenB) == address(0)) {
             IUniswapV2Factory(factory0).createPair(tokenA, tokenB);
         }
-        (uint256 reserveA, uint256 reserveB) = SplitOrderLibrary.getReserves(
-            factory0,
-            tokenA,
-            tokenB
-        );
+        (uint256 reserveA, uint256 reserveB) = SplitOrderLibrary.getReserves(factory0, tokenA, tokenB);
         if (_isZero(reserveA) && _isZero(reserveB)) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
-            uint256 amountBOptimal = SplitOrderLibrary.quote(
-                amountADesired,
-                reserveA,
-                reserveB
-            );
+            uint256 amountBOptimal = SplitOrderLibrary.quote(amountADesired, reserveA, reserveB);
             if (amountBOptimal > amountBDesired) {
-                uint256 amountAOptimal = SplitOrderLibrary.quote(
-                    amountBDesired,
-                    reserveB,
-                    reserveA
-                );
-                if (amountAOptimal > amountADesired)
-                    revert InsufficientAAmount();
+                uint256 amountAOptimal = SplitOrderLibrary.quote(amountBDesired, reserveB, reserveA);
+                if (amountAOptimal > amountADesired) revert InsufficientAAmount();
                 if (amountAOptimal < amountAMin) revert InsufficientAAmount();
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
             } else {
@@ -142,19 +126,8 @@ contract SplitOrderRouter {
         )
     {
         ensure(deadline);
-        (amountA, amountB) = _addLiquidity(
-            tokenA,
-            tokenB,
-            amountADesired,
-            amountBDesired,
-            amountAMin,
-            amountBMin
-        );
-        address pair = SplitOrderLibrary.pairFor(
-            SplitOrderLibrary.SUSHI_FACTORY,
-            tokenA,
-            tokenB
-        );
+        (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
+        address pair = SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, tokenA, tokenB);
         ERC20(tokenA).safeTransferFrom(msg.sender, pair, amountA);
         ERC20(tokenB).safeTransferFrom(msg.sender, pair, amountB);
         liquidity = IUniswapV2Pair(pair).mint(to);
@@ -197,18 +170,13 @@ contract SplitOrderRouter {
             amountTokenMin,
             amountETHMin
         );
-        address pair = SplitOrderLibrary.pairFor(
-            SplitOrderLibrary.SUSHI_FACTORY,
-            token,
-            weth
-        );
+        address pair = SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, token, weth);
         ERC20(token).safeTransferFrom(msg.sender, pair, amountToken);
-        IWETH(weth).deposit{value: amountETH}();
+        IWETH(weth).deposit{ value: amountETH }();
         ERC20(weth).safeTransfer(pair, amountETH);
         liquidity = IUniswapV2Pair(pair).mint(to);
         // refund dust eth, if any
-        if (msg.value > amountETH)
-            SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountETH);
+        if (msg.value > amountETH) SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountETH);
     }
 
     /// @notice Removes liquidity from an ERC-20⇄ERC-20 pool. msg.sender should have already given the router an allowance of at least liquidity on the pool.
@@ -231,17 +199,11 @@ contract SplitOrderRouter {
         uint256 deadline
     ) public virtual returns (uint256 amountA, uint256 amountB) {
         ensure(deadline);
-        address pair = SplitOrderLibrary.pairFor(
-            SplitOrderLibrary.SUSHI_FACTORY,
-            tokenA,
-            tokenB
-        );
+        address pair = SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, tokenA, tokenB);
         ERC20(pair).safeTransferFrom(msg.sender, pair, liquidity); // send liquidity to pair
         (uint256 amount0, uint256 amount1) = IUniswapV2Pair(pair).burn(to);
         (address token0, ) = SplitOrderLibrary.sortTokens(tokenA, tokenB);
-        (amountA, amountB) = tokenA == token0
-            ? (amount0, amount1)
-            : (amount1, amount0);
+        (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
         if (amountA < amountAMin) revert InsufficientAAmount();
         if (amountB < amountBMin) revert InsufficientBAmount();
     }
@@ -275,9 +237,7 @@ contract SplitOrderRouter {
             deadline
         );
         // exploit check from fee-on-transfer tokens
-        if (
-            amountToken != ERC20(token).balanceOf(address(this)) - balanceBefore
-        ) revert TokenIsFeeOnTransfer();
+        if (amountToken != ERC20(token).balanceOf(address(this)) - balanceBefore) revert TokenIsFeeOnTransfer();
         ERC20(token).safeTransfer(to, amountToken);
         IWETH(weth).withdraw(amountETH);
         SafeTransferLib.safeTransferETH(to, amountETH);
@@ -310,30 +270,16 @@ contract SplitOrderRouter {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountA, uint256 amountB) {
-        IUniswapV2Pair(
-            SplitOrderLibrary.pairFor(
-                SplitOrderLibrary.SUSHI_FACTORY,
-                tokenA,
-                tokenB
-            )
-        ).permit(
-                msg.sender,
-                address(this),
-                approveMax ? type(uint256).max : liquidity,
-                deadline,
-                v,
-                r,
-                s
-            );
-        (amountA, amountB) = removeLiquidity(
-            tokenA,
-            tokenB,
-            liquidity,
-            amountAMin,
-            amountBMin,
-            to,
-            deadline
+        IUniswapV2Pair(SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, tokenA, tokenB)).permit(
+            msg.sender,
+            address(this),
+            approveMax ? type(uint256).max : liquidity,
+            deadline,
+            v,
+            r,
+            s
         );
+        (amountA, amountB) = removeLiquidity(tokenA, tokenB, liquidity, amountAMin, amountBMin, to, deadline);
     }
 
     /// @notice Removes liquidity from an ERC-20⇄WETTH pool and receive ETH without pre-approval, thanks to permit
@@ -361,29 +307,16 @@ contract SplitOrderRouter {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountToken, uint256 amountETH) {
-        IUniswapV2Pair(
-            SplitOrderLibrary.pairFor(
-                SplitOrderLibrary.SUSHI_FACTORY,
-                token,
-                WETH09
-            )
-        ).permit(
-                msg.sender,
-                address(this),
-                approveMax ? type(uint256).max : liquidity,
-                deadline,
-                v,
-                r,
-                s
-            );
-        (amountToken, amountETH) = removeLiquidityETH(
-            token,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            to,
-            deadline
+        IUniswapV2Pair(SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, token, WETH09)).permit(
+            msg.sender,
+            address(this),
+            approveMax ? type(uint256).max : liquidity,
+            deadline,
+            v,
+            r,
+            s
         );
+        (amountToken, amountETH) = removeLiquidityETH(token, liquidity, amountTokenMin, amountETHMin, to, deadline);
     }
 
     /// @notice Identical to removeLiquidityETH, but succeeds for tokens that take a fee on transfer. msg.sender should have already given the router an allowance of at least liquidity on the pool.
@@ -404,19 +337,8 @@ contract SplitOrderRouter {
     ) public virtual returns (uint256 amountETH) {
         address weth = WETH09;
         uint256 balanceBefore = ERC20(token).balanceOf(address(this));
-        (, amountETH) = removeLiquidity(
-            token,
-            weth,
-            liquidity,
-            amountTokenMin,
-            amountETHMin,
-            address(this),
-            deadline
-        );
-        ERC20(token).safeTransfer(
-            to,
-            ERC20(token).balanceOf(address(this)) - balanceBefore
-        );
+        (, amountETH) = removeLiquidity(token, weth, liquidity, amountTokenMin, amountETHMin, address(this), deadline);
+        ERC20(token).safeTransfer(to, ERC20(token).balanceOf(address(this)) - balanceBefore);
         IWETH(weth).withdraw(amountETH);
         SafeTransferLib.safeTransferETH(to, amountETH);
     }
@@ -445,21 +367,15 @@ contract SplitOrderRouter {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountETH) {
-        IUniswapV2Pair(
-            SplitOrderLibrary.pairFor(
-                SplitOrderLibrary.SUSHI_FACTORY,
-                token,
-                WETH09
-            )
-        ).permit(
-                msg.sender,
-                address(this),
-                approveMax ? type(uint256).max : liquidity,
-                deadline,
-                v,
-                r,
-                s
-            );
+        IUniswapV2Pair(SplitOrderLibrary.pairFor(SplitOrderLibrary.SUSHI_FACTORY, token, WETH09)).permit(
+            msg.sender,
+            address(this),
+            approveMax ? type(uint256).max : liquidity,
+            deadline,
+            v,
+            r,
+            s
+        );
         amountETH = removeLiquidityETHSupportingFeeOnTransferTokens(
             token,
             liquidity,
@@ -476,9 +392,7 @@ contract SplitOrderRouter {
         address pair,
         uint256 amountOut
     ) internal virtual {
-        (uint256 amount0Out, uint256 amount1Out) = isReverse
-            ? (amountOut, uint256(0))
-            : (uint256(0), amountOut);
+        (uint256 amount0Out, uint256 amount1Out) = isReverse ? (amountOut, uint256(0)) : (uint256(0), amountOut);
         _asmSwap(pair, amount0Out, amount1Out, to);
     }
 
@@ -496,30 +410,12 @@ contract SplitOrderRouter {
         for (uint256 i; i < length; i = _inc(i)) {
             address to = i < _dec(length) ? address(this) : _to; // split route requires intermediate swaps route to this address
             if (_isNonZero(swaps[i].amountIn0)) {
-                if (_isNonZero(i))
-                    ERC20(swaps[i].tokenIn).safeTransfer(
-                        swaps[i].pair0,
-                        swaps[i].amountIn0
-                    );
-                _swapSingle(
-                    swaps[i].isReverse,
-                    to,
-                    swaps[i].pair0,
-                    swaps[i].amountOut0
-                );
+                if (_isNonZero(i)) ERC20(swaps[i].tokenIn).safeTransfer(swaps[i].pair0, swaps[i].amountIn0);
+                _swapSingle(swaps[i].isReverse, to, swaps[i].pair0, swaps[i].amountOut0);
             }
             if (_isNonZero(swaps[i].amountIn1)) {
-                if (_isNonZero(i))
-                    ERC20(swaps[i].tokenIn).safeTransfer(
-                        swaps[i].pair1,
-                        swaps[i].amountIn1
-                    );
-                _swapSingle(
-                    swaps[i].isReverse,
-                    to,
-                    swaps[i].pair1,
-                    swaps[i].amountOut1
-                );
+                if (_isNonZero(i)) ERC20(swaps[i].tokenIn).safeTransfer(swaps[i].pair1, swaps[i].amountIn1);
+                _swapSingle(swaps[i].isReverse, to, swaps[i].pair1, swaps[i].amountOut1);
             }
             amounts[_inc(i)] = swaps[i].amountOut0 + swaps[i].amountOut1;
         }
@@ -541,29 +437,13 @@ contract SplitOrderRouter {
         uint256 deadline
     ) external virtual returns (uint256[] memory amounts) {
         ensure(deadline);
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(
-            WETH09,
-            BACKUP_FACTORY,
-            amountIn,
-            path
-        );
-        if (
-            amountOutMin >
-            swaps[_dec(swaps.length)].amountOut0 +
-                swaps[_dec(swaps.length)].amountOut1
-        ) revert InsufficientOutputAmount();
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(WETH09, BACKUP_FACTORY, amountIn, path);
+        if (amountOutMin > swaps[_dec(swaps.length)].amountOut0 + swaps[_dec(swaps.length)].amountOut1)
+            revert InsufficientOutputAmount();
         if (_isNonZero(swaps[0].amountIn0))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair0,
-                swaps[0].amountIn0
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair0, swaps[0].amountIn0);
         if (_isNonZero(swaps[0].amountIn1))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair1,
-                swaps[0].amountIn1
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(to, swaps);
     }
 
@@ -583,26 +463,12 @@ contract SplitOrderRouter {
         uint256 deadline
     ) external virtual returns (uint256[] memory amounts) {
         ensure(deadline);
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(
-            WETH09,
-            BACKUP_FACTORY,
-            amountOut,
-            path
-        );
-        if (amountInMax < swaps[0].amountIn0 + swaps[0].amountIn1)
-            revert ExcessiveInputAmount();
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(WETH09, BACKUP_FACTORY, amountOut, path);
+        if (amountInMax < swaps[0].amountIn0 + swaps[0].amountIn1) revert ExcessiveInputAmount();
         if (_isNonZero(swaps[0].amountIn0))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair0,
-                swaps[0].amountIn0
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair0, swaps[0].amountIn0);
         if (_isNonZero(swaps[0].amountIn1))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair1,
-                swaps[0].amountIn1
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(to, swaps);
     }
 
@@ -622,22 +488,12 @@ contract SplitOrderRouter {
         ensure(deadline);
         address weth = WETH09;
         if (path[0] != weth) revert InvalidPath();
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(
-            WETH09,
-            BACKUP_FACTORY,
-            msg.value,
-            path
-        );
-        if (
-            amountOutMin >
-            swaps[_dec(swaps.length)].amountOut0 +
-                swaps[_dec(swaps.length)].amountOut1
-        ) revert InsufficientOutputAmount();
-        IWETH(weth).deposit{value: msg.value}();
-        if (_isNonZero(swaps[0].amountIn0))
-            ERC20(weth).safeTransfer(swaps[0].pair0, swaps[0].amountIn0);
-        if (_isNonZero(swaps[0].amountIn1))
-            ERC20(weth).safeTransfer(swaps[0].pair1, swaps[0].amountIn1);
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(WETH09, BACKUP_FACTORY, msg.value, path);
+        if (amountOutMin > swaps[_dec(swaps.length)].amountOut0 + swaps[_dec(swaps.length)].amountOut1)
+            revert InsufficientOutputAmount();
+        IWETH(weth).deposit{ value: msg.value }();
+        if (_isNonZero(swaps[0].amountIn0)) ERC20(weth).safeTransfer(swaps[0].pair0, swaps[0].amountIn0);
+        if (_isNonZero(swaps[0].amountIn1)) ERC20(weth).safeTransfer(swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(to, swaps);
     }
 
@@ -659,26 +515,12 @@ contract SplitOrderRouter {
         ensure(deadline);
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(
-            WETH09,
-            BACKUP_FACTORY,
-            amountOut,
-            path
-        );
-        if (amountInMax < swaps[0].amountIn0 + swaps[0].amountIn1)
-            revert ExcessiveInputAmount();
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(WETH09, BACKUP_FACTORY, amountOut, path);
+        if (amountInMax < swaps[0].amountIn0 + swaps[0].amountIn1) revert ExcessiveInputAmount();
         if (_isNonZero(swaps[0].amountIn0))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair0,
-                swaps[0].amountIn0
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair0, swaps[0].amountIn0);
         if (_isNonZero(swaps[0].amountIn1))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair1,
-                swaps[0].amountIn1
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(address(this), swaps);
         IWETH(weth).withdraw(amounts[_dec(path.length)]);
         SafeTransferLib.safeTransferETH(to, amounts[_dec(path.length)]);
@@ -702,29 +544,13 @@ contract SplitOrderRouter {
         ensure(deadline);
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(
-            WETH09,
-            BACKUP_FACTORY,
-            amountIn,
-            path
-        );
-        if (
-            amountOutMin >
-            swaps[_dec(swaps.length)].amountOut0 +
-                swaps[_dec(swaps.length)].amountOut1
-        ) revert InsufficientOutputAmount();
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsOut(WETH09, BACKUP_FACTORY, amountIn, path);
+        if (amountOutMin > swaps[_dec(swaps.length)].amountOut0 + swaps[_dec(swaps.length)].amountOut1)
+            revert InsufficientOutputAmount();
         if (_isNonZero(swaps[0].amountIn0))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair0,
-                swaps[0].amountIn0
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair0, swaps[0].amountIn0);
         if (_isNonZero(swaps[0].amountIn1))
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                swaps[0].pair1,
-                swaps[0].amountIn1
-            );
+            ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(address(this), swaps);
         uint256 amountOut = amounts[_dec(path.length)];
         IWETH(weth).withdraw(amountOut);
@@ -747,27 +573,16 @@ contract SplitOrderRouter {
         ensure(deadline);
         address weth = WETH09;
         if (path[0] != weth) revert InvalidPath();
-        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(
-            WETH09,
-            BACKUP_FACTORY,
-            amountOut,
-            path
-        );
-        if (msg.value < swaps[0].amountIn0 + swaps[0].amountIn1)
-            revert ExcessiveInputAmount();
-        IWETH(weth).deposit{value: swaps[0].amountIn0 + swaps[0].amountIn1}();
-        if (_isNonZero(swaps[0].amountIn0))
-            ERC20(weth).safeTransfer(swaps[0].pair0, swaps[0].amountIn0);
-        if (_isNonZero(swaps[0].amountIn1))
-            ERC20(weth).safeTransfer(swaps[0].pair1, swaps[0].amountIn1);
+        SplitOrderLibrary.Swap[] memory swaps = SplitOrderLibrary.getSwapsIn(WETH09, BACKUP_FACTORY, amountOut, path);
+        if (msg.value < swaps[0].amountIn0 + swaps[0].amountIn1) revert ExcessiveInputAmount();
+        IWETH(weth).deposit{ value: swaps[0].amountIn0 + swaps[0].amountIn1 }();
+        if (_isNonZero(swaps[0].amountIn0)) ERC20(weth).safeTransfer(swaps[0].pair0, swaps[0].amountIn0);
+        if (_isNonZero(swaps[0].amountIn1)) ERC20(weth).safeTransfer(swaps[0].pair1, swaps[0].amountIn1);
         amounts = _swap(to, swaps);
 
         // refund dust eth, if any
         if (msg.value > swaps[0].amountIn0 + swaps[0].amountIn1)
-            SafeTransferLib.safeTransferETH(
-                msg.sender,
-                msg.value - swaps[0].amountIn0 - swaps[0].amountIn1
-            );
+            SafeTransferLib.safeTransferETH(msg.sender, msg.value - swaps[0].amountIn0 - swaps[0].amountIn1);
     }
 
     //requires the initial amount to have already been sent to the first pair
@@ -777,9 +592,7 @@ contract SplitOrderRouter {
         bool isReverse,
         address to
     ) internal virtual {
-        (uint256 amount0Out, uint256 amount1Out) = isReverse
-            ? (amountOutput, uint256(0))
-            : (uint256(0), amountOutput);
+        (uint256 amount0Out, uint256 amount1Out) = isReverse ? (amountOutput, uint256(0)) : (uint256(0), amountOutput);
         _asmSwap(pair, amount0Out, amount1Out, to);
     }
 
@@ -794,10 +607,7 @@ contract SplitOrderRouter {
             bool isReverse;
             address pair;
             {
-                (address token0, address token1) = SplitOrderLibrary.sortTokens(
-                    tokenIn,
-                    tokenOut
-                );
+                (address token0, address token1) = SplitOrderLibrary.sortTokens(tokenIn, tokenOut);
                 isReverse = tokenOut == token0;
                 pair = SplitOrderLibrary._asmPairFor(factory0, token0, token1);
             }
@@ -805,28 +615,14 @@ contract SplitOrderRouter {
             {
                 // scope to avoid stack too deep errors
                 uint256 amountInput;
-                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
-                    .getReserves();
-                (uint112 reserveInput, uint112 reserveOutput) = isReverse
-                    ? (reserve1, reserve0)
-                    : (reserve0, reserve1);
+                (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
+                (uint112 reserveInput, uint112 reserveOutput) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
                 amountInput = ERC20(tokenIn).balanceOf(pair) - reserveInput;
-                amountOutput = SplitOrderLibrary.getAmountOut(
-                    amountInput,
-                    reserveInput,
-                    reserveOutput
-                );
+                amountOutput = SplitOrderLibrary.getAmountOut(amountInput, reserveInput, reserveOutput);
             }
 
-            address to = i < length - 2
-                ? SplitOrderLibrary.pairFor(factory0, tokenOut, path[i + 2])
-                : _to;
-            _swapSupportingFeeOnTransferTokensExecute(
-                pair,
-                amountOutput,
-                isReverse,
-                to
-            );
+            address to = i < length - 2 ? SplitOrderLibrary.pairFor(factory0, tokenOut, path[i + 2]) : _to;
+            _swapSupportingFeeOnTransferTokensExecute(pair, amountOutput, isReverse, to);
         }
     }
 
@@ -846,17 +642,11 @@ contract SplitOrderRouter {
     ) external virtual {
         ensure(deadline);
         address factory0 = SplitOrderLibrary.SUSHI_FACTORY;
-        ERC20(path[0]).safeTransferFrom(
-            msg.sender,
-            SplitOrderLibrary.pairFor(factory0, path[0], path[1]),
-            amountIn
-        );
+        ERC20(path[0]).safeTransferFrom(msg.sender, SplitOrderLibrary.pairFor(factory0, path[0], path[1]), amountIn);
         uint256 balanceBefore = ERC20(path[_dec(path.length)]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to, factory0);
-        if (
-            ERC20(path[_dec(path.length)]).balanceOf(to) - balanceBefore <
-            amountOutMin
-        ) revert InsufficientOutputAmount();
+        if (ERC20(path[_dec(path.length)]).balanceOf(to) - balanceBefore < amountOutMin)
+            revert InsufficientOutputAmount();
     }
 
     /// @notice Identical to swapExactETHForTokens, but succeeds for tokens that take a fee on transfer. amountIn = msg.value
@@ -876,17 +666,12 @@ contract SplitOrderRouter {
         if (path[0] != weth) revert InvalidPath();
         address factory0 = SplitOrderLibrary.SUSHI_FACTORY;
         uint256 amountIn = msg.value;
-        IWETH(weth).deposit{value: amountIn}();
-        ERC20(weth).safeTransfer(
-            SplitOrderLibrary.pairFor(factory0, path[0], path[1]),
-            amountIn
-        );
+        IWETH(weth).deposit{ value: amountIn }();
+        ERC20(weth).safeTransfer(SplitOrderLibrary.pairFor(factory0, path[0], path[1]), amountIn);
         uint256 balanceBefore = ERC20(path[_dec(path.length)]).balanceOf(to);
         _swapSupportingFeeOnTransferTokens(path, to, factory0);
-        if (
-            ERC20(path[_dec(path.length)]).balanceOf(to) - balanceBefore <
-            amountOutMin
-        ) revert InsufficientOutputAmount();
+        if (ERC20(path[_dec(path.length)]).balanceOf(to) - balanceBefore < amountOutMin)
+            revert InsufficientOutputAmount();
     }
 
     /// @notice Identical to swapExactTokensForETH, but succeeds for tokens that take a fee on transfer.
@@ -907,15 +692,10 @@ contract SplitOrderRouter {
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
         address factory0 = SplitOrderLibrary.SUSHI_FACTORY;
-        ERC20(path[0]).safeTransferFrom(
-            msg.sender,
-            SplitOrderLibrary.pairFor(factory0, path[0], path[1]),
-            amountIn
-        );
+        ERC20(path[0]).safeTransferFrom(msg.sender, SplitOrderLibrary.pairFor(factory0, path[0], path[1]), amountIn);
         uint256 balanceBefore = ERC20(weth).balanceOf(address(this));
         _swapSupportingFeeOnTransferTokens(path, address(this), factory0);
-        uint256 amountOut = ERC20(weth).balanceOf(address(this)) -
-            balanceBefore;
+        uint256 amountOut = ERC20(weth).balanceOf(address(this)) - balanceBefore;
         if (amountOut < amountOutMin) revert InsufficientOutputAmount();
         IWETH(weth).withdraw(amountOut);
         SafeTransferLib.safeTransferETH(to, amountOut);
@@ -951,12 +731,7 @@ contract SplitOrderRouter {
         virtual
         returns (uint256[] memory amounts)
     {
-        return
-            SplitOrderLibrary.getAmountsOut(
-                SplitOrderLibrary.SUSHI_FACTORY,
-                amountIn,
-                path
-            );
+        return SplitOrderLibrary.getAmountsOut(SplitOrderLibrary.SUSHI_FACTORY, amountIn, path);
     }
 
     function getAmountsIn(uint256 amountOut, address[] calldata path)
@@ -965,12 +740,7 @@ contract SplitOrderRouter {
         virtual
         returns (uint256[] memory amounts)
     {
-        return
-            SplitOrderLibrary.getAmountsIn(
-                SplitOrderLibrary.SUSHI_FACTORY,
-                amountOut,
-                path
-            );
+        return SplitOrderLibrary.getAmountsIn(SplitOrderLibrary.SUSHI_FACTORY, amountOut, path);
     }
 
     /// @custom:assembly Efficient single swap call
@@ -986,7 +756,7 @@ contract SplitOrderRouter {
         address to
     ) internal {
         bytes4 selector = SWAP_SELECTOR;
-        assembly {
+        assembly ("memory-safe") {
             let ptr := mload(0x40) // get free memory pointer
             mstore(ptr, selector) // append 4 byte selector
             mstore(add(ptr, 0x04), amount0Out) // append amount0Out

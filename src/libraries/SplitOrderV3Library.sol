@@ -29,9 +29,6 @@ library SplitOrderV3Library {
     }
 
     struct Pool {
-        // bool isV3; // is pool / pair uniV3, if false assumed V2 pool
-        // uint24 fee; // pool fee % * 10000 (e.g 0.3% -> 3000)
-        // uint160 sqrtPrice; // for V3 only
         address pair; // pair (sushi, univ2, univ3 (4 pools))
         uint256 amountIn; // amount In for each pair
         uint256 amountOut; // amount Out for each pair
@@ -44,18 +41,12 @@ library SplitOrderV3Library {
         Pool[6] pools; // 6 pools (sushi, univ2, univ3 (4 pools))
     }
 
-    address internal constant UNIV3_FACTORY =
-        0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address internal constant SUSHI_FACTORY =
-        0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-    bytes32 internal constant SUSHI_FACTORY_HASH =
-        0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
-    bytes32 internal constant BACKUP_FACTORY_HASH =
-        0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-    uint256 internal constant FF_SUSHI_FACTORY =
-        0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
-    uint256 internal constant FF_BACKUP_FACTORY =
-        0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
+    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address internal constant SUSHI_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
+    bytes32 internal constant SUSHI_FACTORY_HASH = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
+    bytes32 internal constant BACKUP_FACTORY_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
+    uint256 internal constant FF_SUSHI_FACTORY = 0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
+    uint256 internal constant FF_BACKUP_FACTORY = 0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
 
@@ -95,11 +86,7 @@ library SplitOrderV3Library {
     /// @param factory Dex factory
     /// @return initCodeHash factory code hash for pair address calculation
     /// @return ffFactory formatted factory address prefixed with 0xff and shifted for abi encoding
-    function factoryHash(address factory)
-        internal
-        pure
-        returns (bytes32 initCodeHash, uint256 ffFactory)
-    {
+    function factoryHash(address factory) internal pure returns (bytes32 initCodeHash, uint256 ffFactory) {
         if (factory == SUSHI_FACTORY) {
             initCodeHash = SUSHI_FACTORY_HASH;
             ffFactory = FF_SUSHI_FACTORY;
@@ -116,11 +103,7 @@ library SplitOrderV3Library {
     /// @param tokenB Pool token
     /// @return token0 First token in pool pair
     /// @return token1 Second token in pool pair
-    function sortTokens(address tokenA, address tokenB)
-        internal
-        pure
-        returns (address token0, address token1)
-    {
+    function sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
         if (tokenA == tokenB) revert IdenticalAddresses();
         bool isZeroAddress;
 
@@ -200,12 +183,8 @@ library SplitOrderV3Library {
         address tokenB
     ) internal view returns (uint256 reserveA, uint256 reserveB) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
-            _asmPairFor(factory, token0, token1)
-        ).getReserves();
-        (reserveA, reserveB) = tokenA == token0
-            ? (reserve0, reserve1)
-            : (reserve1, reserve0);
+        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1)).getReserves();
+        (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
     /// @notice Given some asset amount and reserves, returns an amount of the other asset representing equivalent value
@@ -220,8 +199,7 @@ library SplitOrderV3Library {
         uint256 reserveB
     ) internal pure returns (uint256 amountB) {
         if (_isZero(amountA)) revert ZeroAmount();
-        if (_isZero(reserveA) || _isZero(reserveB))
-            revert InsufficientLiquidity();
+        if (_isZero(reserveA) || _isZero(reserveB)) revert InsufficientLiquidity();
         amountB = (amountA * reserveB) / reserveA;
     }
 
@@ -237,8 +215,7 @@ library SplitOrderV3Library {
         uint256 reserveOut
     ) internal pure returns (uint256 amountOut) {
         if (_isZero(amountIn)) revert ZeroAmount();
-        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY)
-            revert InsufficientLiquidity();
+        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY) revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 amountInWithFee = amountIn * uint256(997);
@@ -262,8 +239,7 @@ library SplitOrderV3Library {
         uint256 fee
     ) internal pure returns (uint256 amountOut) {
         if (_isZero(amountIn)) revert ZeroAmount();
-        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY)
-            revert InsufficientLiquidity();
+        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY) revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 amountInWithFee = amountIn * (1000000 - fee);
@@ -286,16 +262,12 @@ library SplitOrderV3Library {
         uint256 reserveOut
     ) internal pure returns (uint256 amountIn) {
         if (_isZero(amountOut)) revert ZeroAmount();
-        if (
-            reserveIn < MINIMUM_LIQUIDITY ||
-            reserveOut < MINIMUM_LIQUIDITY ||
-            reserveOut <= amountOut
-        ) revert InsufficientLiquidity();
+        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY || reserveOut <= amountOut)
+            revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 numerator = reserveIn * amountOut * uint256(1000);
-            if ((reserveIn * uint256(1000)) != numerator / amountOut)
-                revert Overflow();
+            if ((reserveIn * uint256(1000)) != numerator / amountOut) revert Overflow();
             uint256 denominator = (reserveOut - amountOut) * uint256(997);
             amountIn = (numerator / denominator) + 1;
         }
@@ -314,16 +286,12 @@ library SplitOrderV3Library {
         uint256 fee
     ) internal pure returns (uint256 amountIn) {
         if (_isZero(amountOut)) revert ZeroAmount();
-        if (
-            reserveIn < MINIMUM_LIQUIDITY ||
-            reserveOut < MINIMUM_LIQUIDITY ||
-            reserveOut <= amountOut
-        ) revert InsufficientLiquidity();
+        if (reserveIn < MINIMUM_LIQUIDITY || reserveOut < MINIMUM_LIQUIDITY || reserveOut <= amountOut)
+            revert InsufficientLiquidity();
         // save gas, perform internal overflow check
         unchecked {
             uint256 numerator = reserveIn * amountOut * uint256(1000000);
-            if ((reserveIn * uint256(1000000)) != numerator / amountOut)
-                revert Overflow();
+            if ((reserveIn * uint256(1000000)) != numerator / amountOut) revert Overflow();
             uint256 denominator = (reserveOut - amountOut) * (1000000 - fee);
             amountIn = (numerator / denominator) + 1;
         }
@@ -345,42 +313,23 @@ library SplitOrderV3Library {
         amounts = new uint256[](length);
         amounts[0] = amountIn;
         for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(
-                factory,
-                path[i],
-                path[_inc(i)]
-            );
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)]);
             amounts[_inc(i)] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
 
-    function _getReserves(bool isReverse, Pool[6] memory pools)
-        internal
-        view
-        returns (Reserve[6] memory reserves)
-    {
+    function _getReserves(bool isReverse, Pool[6] memory pools) internal view returns (Reserve[6] memory reserves) {
         // 2 V2 pools
         for (uint256 i; i < 2; i = _inc(i)) {
-            (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(
-                pools[i].pair
-            ).getReserves();
-            (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse
-                ? (reserve1, reserve0)
-                : (reserve0, reserve1);
+            (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(pools[i].pair).getReserves();
+            (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
         }
         // 4 V3 pools
         for (uint256 i = 2; i < 6; i = _inc(i)) {
-            uint160 sqrtPriceX96 = uint160(
-                IUniswapV3Pool(pools[i].pair).slot0()
-            ) / uint160(2**96);
-            uint256 liquidity = uint256(
-                IUniswapV3Pool(pools[i].pair).liquidity()
-            );
+            uint160 sqrtPriceX96 = uint160(IUniswapV3Pool(pools[i].pair).slot0()) / uint160(2**96);
+            uint256 liquidity = uint256(IUniswapV3Pool(pools[i].pair).liquidity());
             if (_isNonZero(liquidity) && _isNonZero(sqrtPriceX96)) {
-                (uint256 reserve0, uint256 reserve1) = (
-                    liquidity / sqrtPriceX96,
-                    liquidity * sqrtPriceX96
-                );
+                (uint256 reserve0, uint256 reserve1) = (liquidity / sqrtPriceX96, liquidity * sqrtPriceX96);
                 (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse
                     ? (reserve1, reserve0)
                     : (reserve0, reserve1);
@@ -412,50 +361,26 @@ library SplitOrderV3Library {
                     swaps[_dec(i)].pools[4].amountOut +
                     swaps[_dec(i)].pools[5].amountOut; // gather split swap amounts
             {
-                (address token0, address token1) = sortTokens(
-                    path[i],
-                    path[_inc(i)]
-                );
-                swaps[i].pools[0].pair = _asmPairFor(
-                    SUSHI_FACTORY,
-                    token0,
-                    token1
-                ); // sushi
+                (address token0, address token1) = sortTokens(path[i], path[_inc(i)]);
+                swaps[i].pools[0].pair = _asmPairFor(SUSHI_FACTORY, token0, token1); // sushi
                 swaps[i].pools[1].pair = _asmPairFor(factory1, token0, token1); // univ2
-                swaps[i].pools[2].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    3000
-                ); // univ3 0.3 %
-                swaps[i].pools[3].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    500
-                ); // univ3 0.05 %
-                swaps[i].pools[4].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    100
-                ); // univ3 0.01 %
-                swaps[i].pools[5].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    10000
-                ); // univ3 1 %
+                swaps[i].pools[2].pair = uniswapV3PoolAddress(token0, token1, 3000); // univ3 0.3 %
+                swaps[i].pools[3].pair = uniswapV3PoolAddress(token0, token1, 500); // univ3 0.05 %
+                swaps[i].pools[4].pair = uniswapV3PoolAddress(token0, token1, 100); // univ3 0.01 %
+                swaps[i].pools[5].pair = uniswapV3PoolAddress(token0, token1, 10000); // univ3 1 %
                 swaps[i].isReverse = path[i] == token1;
             }
             swaps[i].tokenIn = path[i];
             swaps[i].tokenOut = path[_inc(i)];
-            Reserve[6] memory reserves = _getReserves(
-                swaps[i].isReverse,
-                swaps[i].pools
-            );
+            Reserve[6] memory reserves = _getReserves(swaps[i].isReverse, swaps[i].pools);
 
             // find optimal route
-            (
-                uint256[6] memory amountsIn,
-                uint256[6] memory amountsOut
-            ) = _optimalRoute(weth, swaps[i].tokenOut, amountIn, reserves);
+            (uint256[6] memory amountsIn, uint256[6] memory amountsOut) = _optimalRoute(
+                weth,
+                swaps[i].tokenOut,
+                amountIn,
+                reserves
+            );
             for (uint256 j; j < 6; j = _inc(j)) {
                 swaps[i].pools[j].amountIn = amountsIn[j];
                 swaps[i].pools[j].amountOut = amountsOut[j];
@@ -479,11 +404,7 @@ library SplitOrderV3Library {
         amounts = new uint256[](length);
         amounts[_dec(length)] = amountOut;
         for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(
-                factory,
-                path[_dec(i)],
-                path[i]
-            );
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i]);
             amounts[_dec(i)] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -512,59 +433,26 @@ library SplitOrderV3Library {
                     swaps[i].pools[4].amountIn +
                     swaps[i].pools[5].amountIn; // gather split swap amounts
             {
-                (address token0, address token1) = sortTokens(
-                    path[_dec(i)],
-                    path[i]
-                );
-                swaps[_dec(i)].pools[0].pair = _asmPairFor(
-                    SUSHI_FACTORY,
-                    token0,
-                    token1
-                ); // sushi
-                swaps[_dec(i)].pools[1].pair = _asmPairFor(
-                    factory1,
-                    token0,
-                    token1
-                ); // univ2
-                swaps[_dec(i)].pools[2].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    3000
-                ); // univ3 0.3 %
-                swaps[_dec(i)].pools[3].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    500
-                ); // univ3 0.05 %
-                swaps[_dec(i)].pools[4].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    100
-                ); // univ3 0.01 %
-                swaps[_dec(i)].pools[5].pair = uniswapV3PoolAddress(
-                    token0,
-                    token1,
-                    10000
-                ); // univ3 1 %
+                (address token0, address token1) = sortTokens(path[_dec(i)], path[i]);
+                swaps[_dec(i)].pools[0].pair = _asmPairFor(SUSHI_FACTORY, token0, token1); // sushi
+                swaps[_dec(i)].pools[1].pair = _asmPairFor(factory1, token0, token1); // univ2
+                swaps[_dec(i)].pools[2].pair = uniswapV3PoolAddress(token0, token1, 3000); // univ3 0.3 %
+                swaps[_dec(i)].pools[3].pair = uniswapV3PoolAddress(token0, token1, 500); // univ3 0.05 %
+                swaps[_dec(i)].pools[4].pair = uniswapV3PoolAddress(token0, token1, 100); // univ3 0.01 %
+                swaps[_dec(i)].pools[5].pair = uniswapV3PoolAddress(token0, token1, 10000); // univ3 1 %
                 swaps[_dec(i)].isReverse = path[i] == token0;
             }
             swaps[_dec(i)].tokenIn = path[_dec(i)];
             swaps[_dec(i)].tokenOut = path[i];
-            Reserve[6] memory reserves = _getReserves(
-                swaps[_dec(i)].isReverse,
-                swaps[_dec(i)].pools
-            );
+            Reserve[6] memory reserves = _getReserves(swaps[_dec(i)].isReverse, swaps[_dec(i)].pools);
 
             // find optimal route
-            (
-                uint256[6] memory amountsIn,
-                uint256[6] memory amountsOut
-            ) = _optimalRouteIn(
-                    weth,
-                    swaps[_dec(i)].tokenIn,
-                    amountOut,
-                    reserves
-                );
+            (uint256[6] memory amountsIn, uint256[6] memory amountsOut) = _optimalRouteIn(
+                weth,
+                swaps[_dec(i)].tokenIn,
+                amountOut,
+                reserves
+            );
 
             for (uint256 j; j < 6; j = _inc(j)) {
                 swaps[_dec(i)].pools[j].amountIn = amountsIn[j];
@@ -573,26 +461,12 @@ library SplitOrderV3Library {
         }
     }
 
-    function _sortArray(uint256[6] memory arr_)
-        internal
-        pure
-        returns (uint256[6] memory)
-    {
-        // uint256 l = arr_.length;
+    function _sortArray(uint256[6] memory arr_) internal pure returns (uint256[6] memory index) {
         uint256[6] memory arr;
-        uint256[6] memory index = [
-            uint256(0),
-            uint256(1),
-            uint256(2),
-            uint256(3),
-            uint256(4),
-            uint256(5)
-        ];
-
+        index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4), uint256(5)];
         for (uint256 i; i < 6; i++) {
             arr[i] = arr_[i];
         }
-
         for (uint256 i; i < 6; i++) {
             for (uint256 j = i + 1; j < 6; j++) {
                 if (arr[i] > arr[j]) {
@@ -605,8 +479,6 @@ library SplitOrderV3Library {
                 }
             }
         }
-
-        return index;
     }
 
     function _optimalRoute(
@@ -614,43 +486,33 @@ library SplitOrderV3Library {
         address tokenOut,
         uint256 amountIn,
         Reserve[6] memory reserves
-    )
-        internal
-        view
-        returns (uint256[6] memory amountsIn, uint256[6] memory amountsOut)
-    {
+    ) internal view returns (uint256[6] memory amountsIn, uint256[6] memory amountsOut) {
         uint256[6] memory amountsOutSingleSwap;
         // first 3 pools have fee of 0.3%
         for (uint256 i; i < 3; i = _inc(i)) {
             if (reserves[i].reserveOut > MINIMUM_LIQUIDITY)
-                amountsOutSingleSwap[i] = getAmountOut(
-                    amountIn,
-                    reserves[i].reserveIn,
-                    reserves[i].reserveOut
-                );
+                amountsOutSingleSwap[i] = getAmountOut(amountIn, reserves[i].reserveIn, reserves[i].reserveOut);
+            // if (i == 3){
+            //     // account for possible tick boundary crossings by taking from expected output 0.5% margin
+            //     amountsOutSingleSwap[i] = amountsOutSingleSwap[i] - amountsOutSingleSwap[i] / 500;
+            // }
         }
         // next 3 pools have variable rates
-        if (reserves[3].reserveOut > MINIMUM_LIQUIDITY)
-            amountsOutSingleSwap[3] = getAmountOutFee(
-                amountIn,
-                reserves[3].reserveIn,
-                reserves[3].reserveOut,
-                500
-            );
-        if (reserves[4].reserveOut > MINIMUM_LIQUIDITY)
-            amountsOutSingleSwap[4] = getAmountOutFee(
-                amountIn,
-                reserves[4].reserveIn,
-                reserves[4].reserveOut,
-                100
-            );
-        if (reserves[5].reserveOut > MINIMUM_LIQUIDITY)
-            amountsOutSingleSwap[5] = getAmountOutFee(
-                amountIn,
-                reserves[5].reserveIn,
-                reserves[5].reserveOut,
-                10000
-            );
+        if (reserves[3].reserveOut > MINIMUM_LIQUIDITY) {
+            amountsOutSingleSwap[3] = getAmountOutFee(amountIn, reserves[3].reserveIn, reserves[3].reserveOut, 500);
+            // account for possible tick boundary crossings by taking from expected output 0.5% margin
+            // amountsOutSingleSwap[3] = amountsOutSingleSwap[3] - amountsOutSingleSwap[3] / 500;
+        }
+        if (reserves[4].reserveOut > MINIMUM_LIQUIDITY) {
+            amountsOutSingleSwap[4] = getAmountOutFee(amountIn, reserves[4].reserveIn, reserves[4].reserveOut, 100);
+            // account for possible tick boundary crossings by taking from expected output 0.5% margin
+            // amountsOutSingleSwap[4] = amountsOutSingleSwap[4] - amountsOutSingleSwap[4] / 500;
+        }
+        if (reserves[5].reserveOut > MINIMUM_LIQUIDITY) {
+            amountsOutSingleSwap[5] = getAmountOutFee(amountIn, reserves[5].reserveIn, reserves[5].reserveOut, 10000);
+            // account for possible tick boundary crossings by taking from expected output 0.5% margin
+            // amountsOutSingleSwap[5] = amountsOutSingleSwap[5] - amountsOutSingleSwap[5] / 500;
+        }
 
         uint256[6] memory index = _sortArray(amountsOutSingleSwap); // sorts in ascending order (i.e. best price is last)
         if (_isNonZero(amountsOutSingleSwap[index[5]])) {
@@ -659,28 +521,27 @@ library SplitOrderV3Library {
             // cascade amountIn through pairs optimally
             for (uint256 i = 4; _isNonZero(0); i = _dec(i)) {
                 uint256 poolIndex = index[i];
-                if (
-                    _isNonZero(amountsOutSingleSwap[poolIndex]) &&
-                    _isNonZero(amountsOutSingleSwap[index[_inc(i)]])
-                ) {
+                if (_isNonZero(amountsOutSingleSwap[poolIndex]) && _isNonZero(amountsOutSingleSwap[index[_inc(i)]])) {
                     // split route
-                    (
-                        uint256 amountIn0,
-                        uint256 amountOut0,
-                        uint256 amountIn1,
-                        uint256 amountOut1
-                    ) = _splitRoute(
-                            weth,
-                            tokenOut,
-                            amountIn,
-                            amountsOutSingleSwap[index[_inc(i)]],
-                            reserves[index[_inc(i)]].reserveIn,
-                            reserves[index[_inc(i)]].reserveOut,
-                            reserves[poolIndex].reserveIn,
-                            reserves[poolIndex].reserveOut,
-                            getFee(index[_inc(i)]),
-                            getFee(poolIndex)
-                        );
+                    (uint256 amountIn0, uint256 amountOut0, uint256 amountIn1, uint256 amountOut1) = _splitRoute(
+                        weth,
+                        tokenOut,
+                        amountIn,
+                        i == 4
+                            ? amountsOutSingleSwap[index[_inc(i)]]
+                            : getAmountOutFee(
+                                amountIn,
+                                reserves[index[_inc(i)]].reserveIn,
+                                reserves[index[_inc(i)]].reserveOut,
+                                getFee(index[_inc(i)])
+                            ),
+                        reserves[index[_inc(i)]].reserveIn,
+                        reserves[index[_inc(i)]].reserveOut,
+                        reserves[poolIndex].reserveIn,
+                        reserves[poolIndex].reserveOut,
+                        getFee(index[_inc(i)]),
+                        getFee(poolIndex)
+                    );
                     if (_isNonZero(amountIn1)) {
                         // route split
                         amountsIn[index[_inc(i)]] = amountIn0;
@@ -719,42 +580,17 @@ library SplitOrderV3Library {
         // set single swap at best rate as default
         amountIn0 = amountIn;
         amountOut0 = amountOutOnePair;
-        uint256 amount0 = _amountToSyncPricesFee(
-            reserveIn0,
-            reserveOut0,
-            reserveIn1,
-            reserveOut1,
-            fee0
-        );
+        uint256 amount0 = _amountToSyncPricesFee(reserveIn0, reserveOut0, reserveIn1, reserveOut1, fee0);
         if (amount0 < amountIn - MINIMUM_LIQUIDITY) {
-            // reserveOut0 =
-            //     reserveOut0 -
-            //     getAmountOut(amount0, reserveIn0, reserveOut0);
-            // reserveIn0 = reserveIn0 + amount0;
+            // apply routing ratio to updated reserves
             uint256 amountInFirstPair = amount0 +
                 ((amountIn - amount0) * (reserveIn0 + amount0)) /
                 (reserveIn0 + amount0 + reserveIn1);
-            uint256 amountOutFirstPair = getAmountOutFee(
-                amountInFirstPair,
-                reserveIn0,
-                reserveOut0,
-                fee0
-            );
-            uint256 amountOutSecondPair = getAmountOutFee(
-                amountIn - amountInFirstPair,
-                reserveIn1,
-                reserveOut1,
-                fee1
-            );
+            uint256 amountOutFirstPair = getAmountOutFee(amountInFirstPair, reserveIn0, reserveOut0, fee0);
+            uint256 amountOutSecondPair = getAmountOutFee(amountIn - amountInFirstPair, reserveIn1, reserveOut1, fee1);
             if (
-                _isNonZero(
-                    amountOutFirstPair + amountOutSecondPair - amountOutOnePair
-                ) &&
-                _wethAmount(
-                    weth,
-                    tokenOut,
-                    amountOutFirstPair + amountOutSecondPair - amountOutOnePair
-                ) >
+                _isNonZero(amountOutFirstPair + amountOutSecondPair - amountOutOnePair) &&
+                _wethAmount(weth, tokenOut, amountOutFirstPair + amountOutSecondPair - amountOutOnePair) >
                 block.basefee * EST_SWAP_GAS_USED
             ) {
                 // split route better than extra gas cost
@@ -771,99 +607,76 @@ library SplitOrderV3Library {
         address tokenIn,
         uint256 amountOut,
         Reserve[6] memory reserves
-    )
-        internal
-        view
-        returns (uint256[6] memory amountsIn, uint256[6] memory amountsOut)
-    {
+    ) internal view returns (uint256[6] memory amountsIn, uint256[6] memory amountsOut) {
         uint256[6] memory amountsInSingleSwap;
         // first 3 pools have fee of 0.3%
         for (uint256 i; i < 3; i = _inc(i)) {
-            if (
-                reserves[i].reserveOut > amountOut &&
-                reserves[i].reserveIn > MINIMUM_LIQUIDITY
-            )
-                amountsInSingleSwap[i] = getAmountIn(
-                    amountOut,
-                    reserves[i].reserveIn,
-                    reserves[i].reserveOut
-                );
+            if (reserves[i].reserveOut > amountOut && reserves[i].reserveIn > MINIMUM_LIQUIDITY)
+                amountsInSingleSwap[i] = getAmountIn(amountOut, reserves[i].reserveIn, reserves[i].reserveOut);
+            // if (i == 3){
+            //     // account for possible tick boundary crossings by adding to expected input 0.5% margin
+            //     amountsInSingleSwap[i] = amountsInSingleSwap[i] + amountsInSingleSwap[i] / 500;
+            // }
         }
         // next 3 pools have variable rates
-        if (
-            reserves[3].reserveOut > amountOut &&
-            reserves[3].reserveIn > MINIMUM_LIQUIDITY
-        )
-            amountsInSingleSwap[3] = getAmountInFee(
-                amountOut,
-                reserves[3].reserveIn,
-                reserves[3].reserveOut,
-                500
-            );
-        if (
-            reserves[4].reserveOut > amountOut &&
-            reserves[4].reserveIn > MINIMUM_LIQUIDITY
-        )
-            amountsInSingleSwap[4] = getAmountInFee(
-                amountOut,
-                reserves[4].reserveIn,
-                reserves[4].reserveOut,
-                100
-            );
-        if (
-            reserves[5].reserveOut > amountOut &&
-            reserves[5].reserveIn > MINIMUM_LIQUIDITY
-        )
-            amountsInSingleSwap[5] = getAmountInFee(
-                amountOut,
-                reserves[5].reserveIn,
-                reserves[5].reserveOut,
-                10000
-            );
+        if (reserves[3].reserveOut > amountOut && reserves[3].reserveIn > MINIMUM_LIQUIDITY) {
+            amountsInSingleSwap[3] = getAmountInFee(amountOut, reserves[3].reserveIn, reserves[3].reserveOut, 500);
+            // account for possible tick boundary crossings by adding to expected input 0.5% margin
+            // amountsInSingleSwap[3] = amountsInSingleSwap[3] + amountsInSingleSwap[3] / 500;
+        }
+        if (reserves[4].reserveOut > amountOut && reserves[4].reserveIn > MINIMUM_LIQUIDITY) {
+            amountsInSingleSwap[4] = getAmountInFee(amountOut, reserves[4].reserveIn, reserves[4].reserveOut, 100);
+            // account for possible tick boundary crossings by adding to expected input 0.5% margin
+            // amountsInSingleSwap[4] = amountsInSingleSwap[4] + amountsInSingleSwap[4] / 500;
+        }
+        if (reserves[5].reserveOut > amountOut && reserves[5].reserveIn > MINIMUM_LIQUIDITY) {
+            amountsInSingleSwap[5] = getAmountInFee(amountOut, reserves[5].reserveIn, reserves[5].reserveOut, 10000);
+            // account for possible tick boundary crossings by adding to expected input 0.5% margin
+            // amountsInSingleSwap[5] = amountsInSingleSwap[5] + amountsInSingleSwap[5] / 500;
+        }
 
         uint256[6] memory index = _sortArray(amountsInSingleSwap); // sorts in ascending order (i.e. best price is first)
-        if (_isNonZero(amountsInSingleSwap[index[0]])) {
-            amountsIn[index[0]] = amountsInSingleSwap[index[0]]; // set best price as default, before splitting
-            amountsOut[index[0]] = amountOut;
-        }
+        uint256 tradeCounter;
         // cascade amountIn through pairs optimally
         for (uint256 i; i < 5; i = _inc(i)) {
             uint256 poolIndex = index[i];
-            if (
-                _isNonZero(amountsInSingleSwap[poolIndex]) &&
-                _isNonZero(amountsInSingleSwap[index[_inc(i)]])
-            ) {
-                // split route
-                (
-                    uint256 amountIn0,
-                    uint256 amountOut0,
-                    uint256 amountIn1,
-                    uint256 amountOut1
-                ) = _splitRouteIn(
-                        weth,
-                        tokenIn,
-                        amountOut,
-                        amountsInSingleSwap[poolIndex],
-                        reserves[poolIndex].reserveIn,
-                        reserves[poolIndex].reserveOut,
-                        reserves[index[_inc(i)]].reserveIn,
-                        reserves[index[_inc(i)]].reserveOut,
-                        getFee(poolIndex),
-                        getFee(index[_inc(i)])
-                    );
-                if (_isNonZero(amountOut1)) {
-                    // route split
-                    amountsIn[poolIndex] = amountIn0;
-                    amountsOut[poolIndex] = amountOut0;
-                    amountsIn[index[_inc(i)]] = amountIn1;
-                    amountsOut[index[_inc(i)]] = amountOut1;
-                    amountOut = amountOut - amountOut0; // TODO: improve logic here, works but slightly sub-optimal (amount0s should be cascaded, which is more complex)
-                    if (_isZero(amountOut)) break;
-                } else {
-                    amountsIn[poolIndex] = amountIn0;
-                    amountsOut[poolIndex] = amountOut0;
-                }
+            if (_isZero(amountsInSingleSwap[poolIndex])) continue;
+            if (_isZero(tradeCounter)) {
+                // first trade, initialise
+                amountsIn[poolIndex] = amountsInSingleSwap[poolIndex]; // set best price as default, before splitting
+                amountsOut[poolIndex] = amountOut;
             }
+
+            if (_isNonZero(amountsInSingleSwap[index[_inc(i)]])) {
+                // split route
+                (uint256 amountIn0, uint256 amountOut0, uint256 amountIn1, uint256 amountOut1) = _splitRouteIn(
+                    weth,
+                    tokenIn,
+                    amountOut,
+                    tradeCounter == 0
+                        ? amountsInSingleSwap[poolIndex]
+                        : getAmountInFee(
+                            amountOut,
+                            reserves[poolIndex].reserveIn,
+                            reserves[poolIndex].reserveOut,
+                            getFee(poolIndex)
+                        ),
+                    reserves[poolIndex].reserveIn,
+                    reserves[poolIndex].reserveOut,
+                    reserves[index[_inc(i)]].reserveIn,
+                    reserves[index[_inc(i)]].reserveOut,
+                    getFee(poolIndex),
+                    getFee(index[_inc(i)])
+                );
+                // route split
+                amountsIn[poolIndex] = amountIn0;
+                amountsOut[poolIndex] = amountOut0;
+                amountsIn[index[_inc(i)]] = amountIn1;
+                amountsOut[index[_inc(i)]] = amountOut1;
+                amountOut = amountOut - amountOut0; // TODO: improve logic here, works but slightly sub-optimal (amount0s should be cascaded, which is more complex)
+                if (_isZero(amountOut)) break;
+            }
+            tradeCounter = tradeCounter + 1;
         }
     }
 
@@ -891,50 +704,23 @@ library SplitOrderV3Library {
         // set single swap at best rate as default
         amountIn0 = amountInOnePair;
         amountOut0 = amountOut;
-        uint256 amount0 = _amountToSyncPricesFee(
-            reserveIn0,
-            reserveOut0,
-            reserveIn1,
-            reserveOut1,
-            fee0
-        );
-        if (
-            _isNonZero(amount0) && amount0 < amountInOnePair - MINIMUM_LIQUIDITY
-        ) {
-            // reserveOut0 =
-            //     reserveOut0 -
-            //     getAmountOut(amount0, reserveIn0, reserveOut0);
-            // reserveIn0 = reserveIn0 + amount0;
+        uint256 amount0 = _amountToSyncPricesFee(reserveIn0, reserveOut0, reserveIn1, reserveOut1, fee0);
+        if (amount0 < amountInOnePair - MINIMUM_LIQUIDITY) {
+            // apply routing ratio to updated reserves
             uint256 amountInFirstPair;
             unchecked {
                 amountInFirstPair =
                     amount0 +
                     ((amountInOnePair - amount0) * (reserveIn0 + amount0)) /
-                    (reserveIn0 + amount0 + reserveIn1);
+                    (reserveIn0 + amount0 + reserveIn1); // possibly suboptimal for amountsIn. TODO: insert equation for amountsIn
             }
 
-            uint256 amountOutFirstPair = getAmountOutFee(
-                amountInFirstPair,
-                reserveIn0,
-                reserveOut0,
-                fee0
-            );
+            uint256 amountOutFirstPair = getAmountOutFee(amountInFirstPair, reserveIn0, reserveOut0, fee0);
             uint256 amountOutSecondPair = amountOut - amountOutFirstPair;
-            uint256 amountInSecondPair = getAmountInFee(
-                amountOutSecondPair,
-                reserveIn1,
-                reserveOut1,
-                fee1
-            );
+            uint256 amountInSecondPair = getAmountInFee(amountOutSecondPair, reserveIn1, reserveOut1, fee1);
             if (
-                _isNonZero(
-                    amountInOnePair - amountInFirstPair - amountInSecondPair
-                ) &&
-                _wethAmount(
-                    weth,
-                    tokenIn,
-                    amountInOnePair - amountInFirstPair - amountInSecondPair
-                ) >
+                _isNonZero(amountInOnePair - amountInFirstPair - amountInSecondPair) &&
+                _wethAmount(weth, tokenIn, amountInOnePair - amountInFirstPair - amountInSecondPair) >
                 block.basefee * EST_SWAP_GAS_USED
             ) {
                 // split route better than extra gas cost
@@ -953,10 +739,7 @@ library SplitOrderV3Library {
         uint256 y2
     ) internal pure returns (uint256) {
         unchecked {
-            return
-                (x1 *
-                    (Babylonian.sqrt(9 + ((1000000 * x2 * y1) / (y2 * x1))) -
-                        1997)) / 1994;
+            return (x1 * (Babylonian.sqrt(9 + ((1000000 * x2 * y1) / (y2 * x1))) - 1997)) / 1994;
         }
     }
 
@@ -971,13 +754,7 @@ library SplitOrderV3Library {
             return
                 (x1 *
                     (Babylonian.sqrt(
-                        fee *
-                            fee +
-                            2000000 *
-                            fee +
-                            2000000 *
-                            1000000 +
-                            ((1000000000000 * x2 * y1) / (y2 * x1))
+                        fee * fee + 2000000 * fee + 2000000 * 1000000 + ((1000000000000 * x2 * y1) / (y2 * x1))
                     ) - (fee + 1000000))) / (2 * fee);
         }
     }
@@ -1000,11 +777,8 @@ library SplitOrderV3Library {
             isReverse = weth == token0;
         }
         {
-            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair)
-                .getReserves();
-            (uint112 reserveIn, uint112 reserveOut) = isReverse
-                ? (reserve1, reserve0)
-                : (reserve0, reserve1);
+            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
+            (uint112 reserveIn, uint112 reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
             return quote(amount, reserveIn, reserveOut);
         }
     }

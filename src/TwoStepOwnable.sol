@@ -22,10 +22,7 @@ abstract contract TwoStepOwnable {
 
     address private _newPotentialOwner;
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
      * @dev Initialize contract by setting transaction submitter as initial owner.

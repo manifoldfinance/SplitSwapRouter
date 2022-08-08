@@ -8,11 +8,7 @@ pragma solidity >=0.8.13 <0.9.0;
 abstract contract ERC20 {
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 amount
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     /**  METADATA STORAGE */
 
@@ -55,11 +51,7 @@ abstract contract ERC20 {
 
     //        ERC20 LOGIC
 
-    function approve(address spender, uint256 amount)
-        public
-        virtual
-        returns (bool)
-    {
+    function approve(address spender, uint256 amount) public virtual returns (bool) {
         allowance[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -67,11 +59,7 @@ abstract contract ERC20 {
         return true;
     }
 
-    function transfer(address to, uint256 amount)
-        public
-        virtual
-        returns (bool)
-    {
+    function transfer(address to, uint256 amount) public virtual returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         // Cannot overflow because the sum of all user
@@ -92,8 +80,7 @@ abstract contract ERC20 {
     ) public virtual returns (bool) {
         uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
 
-        if (allowed != type(uint256).max)
-            allowance[from][msg.sender] = allowed - amount;
+        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
 
         balanceOf[from] -= amount;
 
@@ -158,19 +145,14 @@ abstract contract ERC20 {
     }
 
     function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
-        return
-            block.chainid == INITIAL_CHAIN_ID
-                ? INITIAL_DOMAIN_SEPARATOR
-                : computeDomainSeparator();
+        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
     }
 
     function computeDomainSeparator() internal view virtual returns (bytes32) {
         return
             keccak256(
                 abi.encode(
-                    keccak256(
-                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                    ),
+                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
                     keccak256(bytes(name)),
                     keccak256("1"),
                     block.chainid,
