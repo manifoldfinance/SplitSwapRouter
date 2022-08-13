@@ -14,7 +14,6 @@ import {ERC20} from "../src/ERC20.sol";
 contract SplitOrderV3RouterFuzzTest is DSTest {
     Vm internal constant vm = Vm(HEVM_ADDRESS);
     SplitOrderV3Router router;
-    // OpenMevLibrary lib;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -98,6 +97,8 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
     function testSwapExactETHForTokens(uint256 amountIn) external {
         vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
         path[0] = WETH;
@@ -112,12 +113,14 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             to,
             deadline
         );
-        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 1000);
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 
     function testSwapETHForExactTokens(uint256 amountIn) external {
         vm.assume(amountIn > 10000000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
         address[] memory path = new address[](2);
         path[0] = WETH;
         path[1] = USDC;
@@ -136,7 +139,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             to,
             deadline
         );
-        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
+        assertLe(amounts[0], amounts2[0]);
     }
 
     function testSwapExactTokensForETH(uint256 amountIn) external {
@@ -183,7 +186,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 100);
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 
     function testSwapTokensForExactETH(uint256 amountIn) external {
@@ -230,7 +233,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
+        assertLe(amounts[0], amounts2[0]);
     }
 
     function testSwapExactTokensForTokens(uint256 amountIn) external {
@@ -271,7 +274,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 1000);
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 
     function testSwapTokensForExactTokens(uint256 amountIn) external {
@@ -318,7 +321,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
+        assertLe(amounts[0], amounts2[0]);
     }
 
     function testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
