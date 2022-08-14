@@ -650,13 +650,15 @@ library SplitOrderV3Library {
         }
         // last one can be calculated as ratio but better to account for rounding errors like this
         amountsOutTmp[index[i]] = amountOut - cumAmountOut;
-        amountsInTmp[index[i]] = getAmountInFee(
-            amountsOutTmp[index[i]],
-            reserves[index[i]].reserveIn,
-            reserves[index[i]].reserveOut,
-            getFee(index[i])
-        );
-        cumAmountIn = cumAmountIn + amountsInTmp[index[i]];
+        if (_isNonZero(amountsOutTmp[index[i]])) {
+            amountsInTmp[index[i]] = getAmountInFee(
+                amountsOutTmp[index[i]],
+                reserves[index[i]].reserveIn,
+                reserves[index[i]].reserveOut,
+                getFee(index[i])
+            );
+            cumAmountIn = cumAmountIn + amountsInTmp[index[i]];
+        }
     }
 
     function _splitSwapIn(
