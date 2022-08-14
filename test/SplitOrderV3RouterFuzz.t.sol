@@ -139,7 +139,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             to,
             deadline
         );
-        assertLe(amounts[0], amounts2[0]);
+        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
     }
 
     function testSwapExactTokensForETH(uint256 amountIn) external {
@@ -233,7 +233,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0]);
+        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
     }
 
     function testSwapExactTokensForTokens(uint256 amountIn) external {
@@ -321,12 +321,14 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0]);
+        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
     }
 
     function testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
         vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
         path[0] = WETH;
@@ -349,6 +351,8 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
     function testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn) external {
         vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
         path[0] = WETH;
@@ -395,6 +399,8 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
     function testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
         vm.assume(amountIn > 1000000000000);
         vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
         path[0] = WETH;

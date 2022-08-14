@@ -436,7 +436,7 @@ library SplitOrderV3Library {
         uint256 amountIn,
         uint256 cumulativeAmount,
         uint256[6] memory index,
-        uint256[5] memory amountsToSyncPrices,
+        uint256[6] memory amountsToSyncPrices,
         Reserve[6] memory reserves
     )
         internal
@@ -449,11 +449,11 @@ library SplitOrderV3Library {
     {
         uint256 cumAmountIn;
         // loop through active pools (indexed 5 (best price) to j (current pool))
-        for (uint256 j = 5; j < i; j = _dec(j)) {
+        for (uint256 j = 5; j > i; j = _dec(j)) {
             uint256 reserveIn = reserves[index[j]].reserveIn;
             uint256 cumReserveIn = reserveIn;
             // assign ratio from each amounts to sync
-            for (uint256 k = 5; k < i; k = _dec(k)) {
+            for (uint256 k = 5; k > i; k = _dec(k)) {
                 amountsInTmp[index[j]] =
                     amountsInTmp[index[j]] +
                     (amountsToSyncPrices[index[k]] * reserveIn) /
@@ -496,7 +496,7 @@ library SplitOrderV3Library {
         if (_isNonZero(amountsOutSingleSwap[index[5]])) {
             amountsIn[index[5]] = amountIn; // set best price as default, before splitting
             amountsOut[index[5]] = amountsOutSingleSwap[index[5]];
-            uint256[5] memory amountsToSyncPrices;
+            uint256[6] memory amountsToSyncPrices;
             uint256 cumulativeAmount;
             uint256 cumulativeReserveIn = reserves[index[5]].reserveIn;
             uint256 cumulativeReserveOut = reserves[index[5]].reserveOut;
@@ -606,7 +606,7 @@ library SplitOrderV3Library {
         uint256 amountOut,
         uint256 cumulativeAmount,
         uint256[6] memory index,
-        uint256[5] memory amountsToSyncPrices,
+        uint256[6] memory amountsToSyncPrices,
         Reserve[6] memory reserves
     )
         internal
@@ -619,12 +619,12 @@ library SplitOrderV3Library {
     {
         uint256 cumAmountOut;
         // loop through active pools (indexed 5 (best price) to j (current pool))
-        for (uint256 j; j > i; j = _inc(j)) {
+        for (uint256 j; j < i; j = _inc(j)) {
             if (_isZero(amountsToSyncPrices[index[j]])) continue;
             uint256 reserveIn = reserves[index[j]].reserveIn;
             uint256 cumReserveIn = reserveIn;
             // assign ratio from each amounts to sync
-            for (uint256 k; k > i; k = _inc(k)) {
+            for (uint256 k; k < i; k = _inc(k)) {
                 if (_isZero(amountsToSyncPrices[index[k]])) continue;
                 amountsInTmp[index[j]] =
                     amountsInTmp[index[j]] +
@@ -664,7 +664,7 @@ library SplitOrderV3Library {
         uint256[6] memory amountsInSingleSwap,
         Reserve[6] memory reserves
     ) internal pure returns (uint256[6] memory amountsIn, uint256[6] memory amountsOut) {
-        uint256[5] memory amountsToSyncPrices;
+        uint256[6] memory amountsToSyncPrices;
         uint256[6] memory index = _sortArray(amountsInSingleSwap); // sorts in ascending order (i.e. best price is first)
         uint256 cumulativeAmount;
         uint256 cumulativeReserveIn;
