@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 /**
-Optimal split order router for single swaps with identical markets on uniV2 forks
+Optimal split order router for sushiswap, uni v2 (or fork) and uni v3 pools
 */
 
 /// ============ Internal Imports ============
@@ -13,8 +13,8 @@ import "./libraries/SplitOrderV3Library.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
 /// @title SplitOrderV3Router
-/// @author Sandy Bradley <sandy@manifoldx.com>
-/// @notice Splits single swap order optimally across 2 uniV2 Dexes
+/// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>
+/// @notice Splits swap order optimally across 2 uniV2 and 4 uniV3 pools (IUniswapV2Router compatible)
 contract SplitOrderV3Router is IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
 
@@ -64,11 +64,12 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         {
             uint24 fee;
             address tokenOut;
-            (tokenIn, tokenOut, fee) = abi.decode(data, (address, address, uint24));
+            (tokenIn, tokenOut, fee) = _decode(data); // custom decode packed (address, address, uint24)
             (address token0, address token1) = SplitOrderV3Library.sortTokens(tokenIn, tokenOut);
-            pool = SplitOrderV3Library.uniswapV3PoolAddress(token0, token1, fee);
+            pool = SplitOrderV3Library.uniswapV3PoolAddress(token0, token1, fee); // safest way to check pool address is valid and pool was the msg sender
         }
         if (msg.sender != pool) revert ExecuteNotAuthorized();
+        // uni v3 optimistically sends tokenOut funds, then calls this function for the tokenIn amount
         if (amount0Delta > 0) ERC20(tokenIn).safeTransfer(msg.sender, uint256(amount0Delta));
         if (amount1Delta > 0) ERC20(tokenIn).safeTransfer(msg.sender, uint256(amount1Delta));
     }
@@ -201,7 +202,8 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ERC20(weth).safeTransfer(pair, amountETH);
         liquidity = IUniswapV2Pair(pair).mint(to);
         // refund dust eth, if any
-        if (msg.value > amountETH) SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountETH);
+        if (msg.value > amountETH && (msg.value - amountETH) > 21000 * block.basefee)
+            SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountETH);
     }
 
     /// @notice Removes liquidity from an ERC-20⇄ERC-20 pool. msg.sender should have already given the router an allowance of at least liquidity on the pool.
@@ -411,6 +413,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         );
     }
 
+    /// @dev single swap for uni v2 pair
     function _swapSingle(
         bool isReverse,
         address to,
@@ -421,6 +424,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         _asmSwap(pair, amount0Out, amount1Out, to);
     }
 
+    /// @dev single swap for uni v3 pool
     function _swapUniV3(
         bool isReverse,
         uint24 fee,
@@ -430,8 +434,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         address pair,
         uint256 amountIn
     ) internal virtual returns (uint256 amountOut) {
-        // bytes memory data = abi.encodePacked(tokenIn, tokenOut, fee);
-        bytes memory data = abi.encode(tokenIn, tokenOut, fee);
+        bytes memory data = abi.encodePacked(tokenIn, tokenOut, fee);
         uint160 sqrtPriceLimitX96 = isReverse ? MAX_SQRT_RATIO - 1 : MIN_SQRT_RATIO + 1;
         (int256 amount0, int256 amount1) = IUniswapV3Pool(pair).swap(
             to,
@@ -443,7 +446,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         amountOut = isReverse ? uint256(-(amount0)) : uint256(-(amount1));
     }
 
-    /// @notice Internal core swap. Requires the initial amount to have already been sent to the first pair.
+    /// @notice Internal core swap. Requires the initial amount to have already been sent to the first pair (for v2 pairs).
     /// @param _to Address of receiver
     /// @param swaps Array of user swap data
     function _swap(address _to, SplitOrderV3Library.Swap[] memory swaps)
@@ -453,21 +456,20 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     {
         uint256 length = swaps.length;
         amounts = new uint256[](_inc(length));
-        amounts[0] =
-            swaps[0].pools[0].amountIn +
-            swaps[0].pools[1].amountIn +
-            swaps[0].pools[2].amountIn +
-            swaps[0].pools[3].amountIn +
-            swaps[0].pools[4].amountIn +
-            swaps[0].pools[5].amountIn;
+        for (uint256 i; i < 6; i = _inc(i)) {
+            amounts[0] = amounts[0] + swaps[0].pools[i].amountIn; // gather amounts in from each route
+        }
+
         for (uint256 i; i < length; i = _inc(i)) {
             address to = i < _dec(length) ? address(this) : _to; // split route requires intermediate swaps route to this address
             // V2 swaps
             for (uint256 j; j < 2; j = _inc(j)) {
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
+                    // first v2 swap amountIn has been transfered to pair
+                    // subseqent swaps will need to transfer to next pair
                     if (_isNonZero(i))
                         ERC20(swaps[i].tokenIn).safeTransfer(swaps[i].pools[j].pair, swaps[i].pools[j].amountIn);
-                    _swapSingle(swaps[i].isReverse, to, swaps[i].pools[j].pair, swaps[i].pools[j].amountOut);
+                    _swapSingle(swaps[i].isReverse, to, swaps[i].pools[j].pair, swaps[i].pools[j].amountOut); // single v2 swap
                     amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
                 }
             }
@@ -483,7 +485,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                         swaps[i].tokenOut,
                         swaps[i].pools[j].pair,
                         swaps[i].pools[j].amountIn
-                    );
+                    ); // single v3 swap
                     amounts[_inc(i)] = amounts[_inc(i)] + amountOut;
                 }
             }
@@ -700,7 +702,8 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         amounts = _swap(to, swaps);
 
         // refund dust eth, if any
-        if (msg.value > amountIn) SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountIn);
+        if (msg.value > amountIn && (msg.value - amountIn) > 21000 * block.basefee)
+            SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountIn);
     }
 
     //requires the initial amount to have already been sent to the first pair
@@ -896,6 +899,30 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                 // 0 size error is the cheapest, but mstore an error enum if you wish
                 revert(0x0, 0x0)
             }
+        }
+    }
+
+    /// @custom:assembly De-compresses 2 addresses and 1 uint24 from byte stream (len = 43)
+    /// @notice De-compresses 2 addresses and 1 uint24 from byte stream (len = 43)
+    /// @param data Compressed byte stream
+    /// @return a Address of first param
+    /// @return b Address of second param
+    /// @return fee (0.3% => 3000 ...)
+    function _decode(bytes memory data)
+        internal
+        pure
+        returns (
+            address a,
+            address b,
+            uint24 fee
+        )
+    {
+        // MLOAD Only, so it's safe
+        assembly ("memory-safe") {
+            // first 32 bytes are reserved for bytes length
+            a := mload(add(data, 20)) // load last 20 bytes of 32 + 20 (52-32=20)
+            b := mload(add(data, 40)) // load last 20 bytes of 32 + 40 (72-32=40)
+            fee := mload(add(data, 43)) // load last 3 bytes of 32 + 43 (75-32=43)
         }
     }
 

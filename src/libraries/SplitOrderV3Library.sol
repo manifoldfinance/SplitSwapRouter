@@ -13,7 +13,7 @@ import "../interfaces/IUniswapV2Factory.sol";
 import "./Babylonian.sol";
 
 /// @title SplitOrderLibrary
-/// @author Sandy Bradley <@sandybradley>, <@CtrlCCtrlV>,
+/// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>
 /// @notice Optimal MEV library to support SplitOrderV3Router
 library SplitOrderV3Library {
     error Overflow();
@@ -50,6 +50,7 @@ library SplitOrderV3Library {
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
 
+    /// @notice calculate uinswap v3 pool address
     function uniswapV3PoolAddress(
         address token0,
         address token1,
@@ -74,6 +75,8 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @notice get fee for pool as a fraction of 1000000 (i.e. 0.3% -> 3000)
+    /// Reference order is hard coded as sushi, univ2, univ3 (0.3%), univ3 (0.05%), univ3 (0.01%), univ3 (1%)
     function getFee(uint256 index) internal pure returns (uint256) {
         if (index <= 2) return 3000;
         // sushi, univ2 and 0.3% univ3
@@ -337,6 +340,7 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @notice calculate pool addresses for tokenIn/Out & factory/fee
     function _getPools(
         address factory1,
         address token0,
@@ -426,6 +430,7 @@ library SplitOrderV3Library {
         (amountsIn, amountsOut) = _splitSwapOut(amountIn, index, amountsOutSingleSwap, reserves);
     }
 
+    /// @notice optimal split for given number of pools
     function _splitRouteOut(
         uint256 i,
         uint256 amountIn,
@@ -481,6 +486,7 @@ library SplitOrderV3Library {
         cumAmountOut = cumAmountOut + amountsOutTmp[index[i]];
     }
 
+    /// @notice assigns optimal route for maximum amount out, given pool reserves
     function _splitSwapOut(
         uint256 amountIn,
         uint256[6] memory index,
@@ -707,6 +713,7 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @notice returns sorted index of amount array (in ascending order)
     function _sortArray(uint256[6] memory arr_) internal pure returns (uint256[6] memory index) {
         uint256[6] memory arr;
         index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4), uint256(5)];
@@ -727,6 +734,7 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @notice sorts possible swaps by best price, then assigns optimal split
     function _optimalRouteIn(uint256 amountOut, Reserve[6] memory reserves)
         internal
         pure
@@ -760,6 +768,12 @@ library SplitOrderV3Library {
         (amountsIn, amountsOut) = _splitSwapIn(amountOut, amountsInSingleSwap, reserves);
     }
 
+    /// @notice returns amount In of pool 1 required to sync prices with pool 2
+    /// @param x1 reserveIn pool 1
+    /// @param y1 reserveOut pool 1
+    /// @param x2 reserveIn pool 2
+    /// @param y2 reserveOut pool 2
+    /// @param fee pool 1 fee
     function _amountToSyncPricesFee(
         uint256 x1,
         uint256 y1,
