@@ -456,7 +456,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     {
         uint256 length = swaps.length;
         amounts = new uint256[](_inc(length));
-        for (uint256 i; i < 6; i = _inc(i)) {
+        for (uint256 i; i < 5; i = _inc(i)) {
             amounts[0] = amounts[0] + swaps[0].pools[i].amountIn; // gather amounts in from each route
         }
 
@@ -474,7 +474,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                 }
             }
             // V3 swaps
-            for (uint256 j = 2; j < 6; j = _inc(j)) {
+            for (uint256 j = 2; j < 5; j = _inc(j)) {
                 uint24 fee = uint24(SplitOrderV3Library.getFee(j));
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     uint256 amountOut = _swapUniV3(
@@ -511,7 +511,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(BACKUP_FACTORY, amountIn, path);
         {
             uint256 amountOut;
-            for (uint256 i; i < 6; i = _inc(i)) {
+            for (uint256 i; i < 5; i = _inc(i)) {
                 amountOut = amountOut + swaps[_dec(swaps.length)].pools[i].amountOut;
             }
             if (amountOutMin > amountOut) revert InsufficientOutputAmount();
@@ -520,7 +520,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
-        for (uint256 i = 2; i < 6; i = _inc(i)) {
+        for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
         }
@@ -547,7 +547,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(BACKUP_FACTORY, amountOut, path);
         {
             uint256 amountIn;
-            for (uint256 i; i < 6; i = _inc(i)) {
+            for (uint256 i; i < 5; i = _inc(i)) {
                 amountIn = amountIn + swaps[0].pools[i].amountIn;
             }
             if (amountInMax < amountIn) revert ExcessiveInputAmount();
@@ -556,7 +556,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
-        for (uint256 i = 2; i < 6; i = _inc(i)) {
+        for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
         }
@@ -582,7 +582,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(BACKUP_FACTORY, msg.value, path);
         {
             uint256 amountOut;
-            for (uint256 i; i < 6; i = _inc(i)) {
+            for (uint256 i; i < 5; i = _inc(i)) {
                 amountOut = amountOut + swaps[_dec(swaps.length)].pools[i].amountOut;
             }
             if (amountOutMin > amountOut) revert InsufficientOutputAmount();
@@ -616,7 +616,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(BACKUP_FACTORY, amountOut, path);
         {
             uint256 amountIn;
-            for (uint256 i; i < 6; i = _inc(i)) {
+            for (uint256 i; i < 5; i = _inc(i)) {
                 amountIn = amountIn + swaps[0].pools[i].amountIn;
             }
             if (amountInMax < amountIn) revert ExcessiveInputAmount();
@@ -625,7 +625,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
-        for (uint256 i = 2; i < 6; i = _inc(i)) {
+        for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
         }
@@ -654,7 +654,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         if (path[_dec(path.length)] != weth) revert InvalidPath();
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(BACKUP_FACTORY, amountIn, path);
         uint256 amountOut;
-        for (uint256 i; i < 6; i = _inc(i)) {
+        for (uint256 i; i < 5; i = _inc(i)) {
             amountOut = amountOut + swaps[_dec(swaps.length)].pools[i].amountOut;
         }
         if (amountOutMin > amountOut) revert InsufficientOutputAmount();
@@ -662,7 +662,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
-        for (uint256 i = 2; i < 6; i = _inc(i)) {
+        for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
         }
@@ -690,7 +690,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         if (path[0] != weth) revert InvalidPath();
         SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(BACKUP_FACTORY, amountOut, path);
         uint256 amountIn;
-        for (uint256 i; i < 6; i = _inc(i)) {
+        for (uint256 i; i < 5; i = _inc(i)) {
             amountIn = amountIn + swaps[0].pools[i].amountIn;
         }
         if (msg.value < amountIn) revert ExcessiveInputAmount();

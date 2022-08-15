@@ -160,7 +160,7 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
             to,
             deadline
         );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: 2 * amountIn }(
             amountOutMin,
             path,
             to,
