@@ -3,12 +3,12 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 import { DSTest } from "../../lib/forge-std/lib/ds-test/src/test.sol";
-import {SplitOrderV3Router} from "../src/SplitOrderV3Router.sol";
+import { SplitOrderV3Router } from "../src/SplitOrderV3Router.sol";
 import { Vm } from "../../lib/forge-std/src/Vm.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "../src/ERC20.sol";
+import { IWETH } from "../src/interfaces/IWETH.sol";
+import { ERC20 } from "../src/ERC20.sol";
 
 /// @title SplitOrderV3RouterTest
 contract SplitOrderV3RouterFuzzTest is DSTest {
@@ -27,7 +27,13 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
     uint256 minLiquidity = uint256(1000);
 
     function setUp() public {
-        router = new SplitOrderV3Router();
+        router = new SplitOrderV3Router(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
+            address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
+            address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
+            bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
+            bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
+        );
     }
 
     receive() external payable {}
@@ -128,18 +134,18 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         address to = address(this);
         uint256 deadline = block.timestamp;
         uint256[] memory amounts = router.swapETHForExactTokens{ value: amountIn }(
-            router.getAmountsOut(amountIn, path)[1]-1,
+            router.getAmountsOut(amountIn, path)[1] - 1,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapETHForExactTokens{ value: amountIn }(
-            routerOld.getAmountsOut(amountIn, path)[1]-1,
+            routerOld.getAmountsOut(amountIn, path)[1] - 1,
             path,
             to,
             deadline
         );
-        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
+        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
     }
 
     function testSwapExactTokensForETH(uint256 amountIn) external {
@@ -168,23 +174,11 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         );
         path[0] = USDC;
         path[1] = WETH;
-        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length-1] + amountsUSDC[amountsUSDC.length-1];
-        usdc.approve(address(router), totalUSDC/2);
-        usdc.approve(address(routerOld), totalUSDC/2);
-        uint256[] memory amounts = router.swapExactTokensForETH(
-            totalUSDC/2,
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amounts2 = routerOld.swapExactTokensForETH(
-            totalUSDC/2,
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length - 1] + amountsUSDC[amountsUSDC.length - 1];
+        usdc.approve(address(router), totalUSDC / 2);
+        usdc.approve(address(routerOld), totalUSDC / 2);
+        uint256[] memory amounts = router.swapExactTokensForETH(totalUSDC / 2, amountOutMin, path, to, deadline);
+        uint256[] memory amounts2 = routerOld.swapExactTokensForETH(totalUSDC / 2, amountOutMin, path, to, deadline);
 
         assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
@@ -215,25 +209,25 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         );
         path[0] = USDC;
         path[1] = WETH;
-        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length-1] + amountsUSDC[amountsUSDC.length-1];
-        usdc.approve(address(router), totalUSDC/2);
-        usdc.approve(address(routerOld), totalUSDC/2);
+        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length - 1] + amountsUSDC[amountsUSDC.length - 1];
+        usdc.approve(address(router), totalUSDC / 2);
+        usdc.approve(address(routerOld), totalUSDC / 2);
         uint256[] memory amounts = router.swapTokensForExactETH(
-            router.getAmountsOut(totalUSDC/2, path)[1] - 1,
-            totalUSDC/2,
+            router.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            totalUSDC / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactETH(
-            routerOld.getAmountsOut(totalUSDC/2, path)[1] - 1,
-            totalUSDC/2,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            totalUSDC / 2,
             path,
             to,
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
+        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
     }
 
     function testSwapExactTokensForTokens(uint256 amountIn) external {
@@ -260,14 +254,14 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1] / 2);
         usdc.approve(address(routerOld), amountsUSDC[amountsUSDC.length - 1] / 2);
         uint256[] memory amounts = router.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1]/2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
             amountOutMin,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1]/2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
             amountOutMin,
             path,
             to,
@@ -303,25 +297,25 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         );
         path[0] = USDC;
         path[1] = DAI;
-        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length-1] + amountsUSDC[amountsUSDC.length-1];
-        usdc.approve(address(router), totalUSDC/2);
-        usdc.approve(address(routerOld), totalUSDC/2);
+        uint256 totalUSDC = amountsUSDC2[amountsUSDC2.length - 1] + amountsUSDC[amountsUSDC.length - 1];
+        usdc.approve(address(router), totalUSDC / 2);
+        usdc.approve(address(routerOld), totalUSDC / 2);
         uint256[] memory amounts = router.swapTokensForExactTokens(
-            router.getAmountsOut(totalUSDC/2, path)[1] - 1,
-            totalUSDC/2,
+            router.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            totalUSDC / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactTokens(
-            routerOld.getAmountsOut(totalUSDC/2, path)[1] - 1,
-            totalUSDC/2,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            totalUSDC / 2,
             path,
             to,
             deadline
         );
 
-        assertLe(amounts[0], amounts2[0] + amounts2[0]/1000);
+        assertLe(amounts[0], amounts2[0] + amounts2[0] / 1000);
     }
 
     function testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {

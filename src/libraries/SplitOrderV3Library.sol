@@ -41,12 +41,8 @@ library SplitOrderV3Library {
         Pool[5] pools; // 5 pools (sushi, univ2, univ3 (3 pools))
     }
 
-    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    address internal constant SUSHI_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-    bytes32 internal constant SUSHI_FACTORY_HASH = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
-    bytes32 internal constant BACKUP_FACTORY_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-    uint256 internal constant FF_SUSHI_FACTORY = 0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
-    uint256 internal constant FF_BACKUP_FACTORY = 0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
+    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984; // Ethereum mainnet, Optimism, Arbitrum, Polygon address
+    // bytes32 internal constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54; // V3 init code hash
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
 
@@ -84,20 +80,6 @@ library SplitOrderV3Library {
         else return 10000;
     }
 
-    /// @notice Retreive factoryCodeHash from factory address
-    /// @param factory Dex factory
-    /// @return initCodeHash factory code hash for pair address calculation
-    /// @return ffFactory formatted factory address prefixed with 0xff and shifted for abi encoding
-    function factoryHash(address factory) internal pure returns (bytes32 initCodeHash, uint256 ffFactory) {
-        if (factory == SUSHI_FACTORY) {
-            initCodeHash = SUSHI_FACTORY_HASH;
-            ffFactory = FF_SUSHI_FACTORY;
-        } else {
-            initCodeHash = BACKUP_FACTORY_HASH;
-            ffFactory = FF_BACKUP_FACTORY;
-        }
-    }
-
     /// @custom:assembly Sort tokens, zero address check
     /// @notice Returns sorted token addresses, used to handle return values from pairs sorted in this order
     /// @dev Require replaced with revert custom error
@@ -133,10 +115,11 @@ library SplitOrderV3Library {
     function pairFor(
         address factory,
         address tokenA,
-        address tokenB
+        address tokenB,
+        bytes32 factoryHash
     ) internal pure returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = _asmPairFor(factory, token0, token1);
+        pair = _asmPairFor(factory, token0, token1, factoryHash);
     }
 
     /// @custom:assembly Calculates the CREATE2 address for a pair without making any external calls from pre-sorted tokens
@@ -145,13 +128,14 @@ library SplitOrderV3Library {
     /// @param factory Factory address for dex
     /// @param token0 Pool token
     /// @param token1 Pool token
+    /// @param factoryHash Init code hash for factory
     /// @return pair Pair pool address
     function _asmPairFor(
         address factory,
         address token0,
-        address token1
+        address token1,
+        bytes32 factoryHash
     ) internal pure returns (address pair) {
-        (bytes32 initCodeHash, uint256 ffFactory) = factoryHash(factory);
         // There is one contract for every combination of tokens,
         // which is deployed using CREATE2.
         // The derivation of this address is given by:
@@ -166,9 +150,10 @@ library SplitOrderV3Library {
             mstore(ptr, shl(96, token0))
             mstore(add(ptr, 0x14), shl(96, token1))
             let salt := keccak256(ptr, 0x28) // keccak256(token0, token1)
-            mstore(ptr, ffFactory) // factory address prefixed with 0xFF as a bigendian uint
+            mstore(ptr, 0xFF00000000000000000000000000000000000000000000000000000000000000) // buffered 0xFF prefix
+            mstore(add(ptr, 0x01), shl(96, factory)) // factory address prefixed
             mstore(add(ptr, 0x15), salt)
-            mstore(add(ptr, 0x35), initCodeHash) // factory init code hash
+            mstore(add(ptr, 0x35), factoryHash) // factory init code hash
             pair := keccak256(ptr, 0x55)
         }
     }
@@ -182,10 +167,12 @@ library SplitOrderV3Library {
     function getReserves(
         address factory,
         address tokenA,
-        address tokenB
+        address tokenB,
+        bytes32 factoryHash
     ) internal view returns (uint256 reserveA, uint256 reserveB) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1)).getReserves();
+        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1, factoryHash))
+            .getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
@@ -307,6 +294,7 @@ library SplitOrderV3Library {
     /// @return amounts Array of input token amount and all subsequent output token amounts
     function getAmountsOut(
         address factory,
+        bytes32 factoryHash,
         uint256 amountIn,
         address[] memory path
     ) internal view returns (uint256[] memory amounts) {
@@ -315,7 +303,7 @@ library SplitOrderV3Library {
         amounts = new uint256[](length);
         amounts[0] = amountIn;
         for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)], factoryHash);
             amounts[_inc(i)] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -341,12 +329,15 @@ library SplitOrderV3Library {
 
     /// @notice calculate pool addresses for tokenIn/Out & factory/fee
     function _getPools(
+        address factory0,
         address factory1,
         address token0,
-        address token1
+        address token1,
+        bytes32 factoryHash0,
+        bytes32 factoryHash1
     ) internal pure returns (Pool[5] memory pools) {
-        pools[0].pair = _asmPairFor(SUSHI_FACTORY, token0, token1); // sushi
-        pools[1].pair = _asmPairFor(factory1, token0, token1); // univ2
+        pools[0].pair = _asmPairFor(factory0, token0, token1, factoryHash0); // sushi
+        pools[1].pair = _asmPairFor(factory1, token0, token1, factoryHash1); // univ2
         pools[2].pair = uniswapV3PoolAddress(token0, token1, 3000); // univ3 0.3 %
         pools[3].pair = uniswapV3PoolAddress(token0, token1, 500); // univ3 0.05 %
         pools[4].pair = uniswapV3PoolAddress(token0, token1, 10000); // univ3 1 %
@@ -358,8 +349,11 @@ library SplitOrderV3Library {
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsOut(
+        address factory0,
         address factory1,
         uint256 amountIn,
+        bytes32 factoryHash0,
+        bytes32 factoryHash1,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
@@ -374,7 +368,7 @@ library SplitOrderV3Library {
             }
             {
                 (address token0, address token1) = sortTokens(path[i], path[_inc(i)]);
-                swaps[i].pools = _getPools(factory1, token0, token1);
+                swaps[i].pools = _getPools(factory0, factory1, token0, token1, factoryHash0, factoryHash1);
                 swaps[i].isReverse = path[i] == token1;
             }
             swaps[i].tokenIn = path[i];
@@ -541,6 +535,7 @@ library SplitOrderV3Library {
     /// @return amounts Array of input token amount and all subsequent output token amounts
     function getAmountsIn(
         address factory,
+        bytes32 factoryHash,
         uint256 amountOut,
         address[] memory path
     ) internal view returns (uint256[] memory amounts) {
@@ -549,7 +544,7 @@ library SplitOrderV3Library {
         amounts = new uint256[](length);
         amounts[_dec(length)] = amountOut;
         for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i], factoryHash);
             amounts[_dec(i)] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -560,8 +555,11 @@ library SplitOrderV3Library {
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsIn(
+        address factory0,
         address factory1,
         uint256 amountOut,
+        bytes32 factoryHash0,
+        bytes32 factoryHash1,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
@@ -576,7 +574,7 @@ library SplitOrderV3Library {
             }
             {
                 (address token0, address token1) = sortTokens(path[_dec(i)], path[i]);
-                swaps[_dec(i)].pools = _getPools(factory1, token0, token1);
+                swaps[_dec(i)].pools = _getPools(factory0, factory1, token0, token1, factoryHash0, factoryHash1);
                 swaps[_dec(i)].isReverse = path[i] == token0;
             }
             swaps[_dec(i)].tokenIn = path[_dec(i)];

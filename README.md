@@ -1,10 +1,14 @@
 # Split Order Router ![Foundry](https://github.com/manifoldfinance/SplitOrderRouter/actions/workflows/test.yml/badge.svg?branch=main)
 
-### Optimal Order split between 2 UniV2 style markets (eg Sushiswap and Uniswap V2)
+### Optimal Order split between 3 Uni V3 pools and 2 Uni V2 pools (i.e. Sushiswap, Uniswap V2, Uniswap V3 [0.3%, 0.05%, 1%])
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
-This router does not find the best liquidity pair path. It uses the path given to compare pools. Nor does it use Curve, Balancer, Uni V3 pools. These are the major improvements to work on for a full smart order router.
+## Ethereum, Polygon, Optimism, Arbitrum
+Using the path given, `SplitOrderV3Router` optimally splits swaps across pools from Uniswap V3, Uniswap V2 and Sushiswap.
+
+## Avalanche and Fantom
+Using the path given, `SplitOrderRouter` optimally splits swaps across pools from TraderJoe / Spookyswap and Sushiswap.
 
 ## Setup
 Copy `.env-example` to `.env` and fill in `ETH_RPC_URL`.

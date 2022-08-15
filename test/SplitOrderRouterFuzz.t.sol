@@ -3,12 +3,12 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 import { DSTest } from "../../lib/forge-std/lib/ds-test/src/test.sol";
-import {SplitOrderRouter} from "../src/SplitOrderRouter.sol";
+import { SplitOrderRouter } from "../src/SplitOrderRouter.sol";
 import { Vm } from "../../lib/forge-std/src/Vm.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
-import {ERC20} from "../src/ERC20.sol";
+import { IWETH } from "../src/interfaces/IWETH.sol";
+import { ERC20 } from "../src/ERC20.sol";
 
 /// @title SplitOrderRouterTest
 contract SplitOrderRouterFuzzTest is DSTest {
@@ -262,14 +262,14 @@ contract SplitOrderRouterFuzzTest is DSTest {
         usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1] / 2);
         usdc.approve(address(routerOld), amountsUSDC[amountsUSDC.length - 1] / 2);
         uint256[] memory amounts = router.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1]/2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
             amountOutMin,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1]/2,
+            amountsUSDC[amountsUSDC.length - 1] / 2,
             amountOutMin,
             path,
             to,
