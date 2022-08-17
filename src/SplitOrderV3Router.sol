@@ -20,9 +20,6 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
 
     // Custom errors save gas, encoding to 4 bytes
     error Expired();
-    error NoTokens();
-    error NotPercent();
-    error NoReceivers();
     error InvalidPath();
     error TransferFailed();
     error InsufficientBAmount();
@@ -30,10 +27,8 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     error TokenIsFeeOnTransfer();
     error ExcessiveInputAmount();
     error ExecuteNotAuthorized();
-    error InsufficientAllowance();
     error InsufficientLiquidity();
     error InsufficientOutputAmount();
-    error NotYetImplemented();
 
     bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
     address internal immutable WETH09;
@@ -45,7 +40,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
     bytes32 internal immutable SUSHI_FACTORY_HASH;
     bytes32 internal immutable BACKUP_FACTORY_HASH;
-    uint256 internal constant EST_SWAP_GAS_USED = 100000;
+    uint256 internal constant EST_SWAP_GAS_USED = 140000;
     uint256 internal constant MIN_LIQUIDITY = 1000;
 
     /// @notice constructor arguments for cross-chain deployment
@@ -942,7 +937,22 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         virtual
         returns (uint256[] memory amounts)
     {
-        return SplitOrderV3Library.getAmountsOut(SUSHI_FACTORY, SUSHI_FACTORY_HASH, amountIn, path);
+        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+            SUSHI_FACTORY,
+            BACKUP_FACTORY,
+            amountIn,
+            SUSHI_FACTORY_HASH,
+            BACKUP_FACTORY_HASH,
+            path
+        );
+        uint256 length = swaps.length;
+        amounts = new uint256[](_inc(length));
+        for (uint256 i; i < length; i = _inc(i)) {
+            for (uint256 j; j < 5; j = _inc(j)) {
+                amounts[i] = amounts[i] + swaps[i].pools[j].amountIn;
+                if (i == _dec(length)) amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
+            }
+        }
     }
 
     function getAmountsIn(uint256 amountOut, address[] calldata path)
@@ -951,7 +961,22 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         virtual
         returns (uint256[] memory amounts)
     {
-        return SplitOrderV3Library.getAmountsIn(SUSHI_FACTORY, SUSHI_FACTORY_HASH, amountOut, path);
+        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(
+            SUSHI_FACTORY,
+            BACKUP_FACTORY,
+            amountOut,
+            SUSHI_FACTORY_HASH,
+            BACKUP_FACTORY_HASH,
+            path
+        );
+        uint256 length = swaps.length;
+        amounts = new uint256[](_inc(length));
+        for (uint256 i; i < length; i = _inc(i)) {
+            for (uint256 j; j < 5; j = _inc(j)) {
+                if (i == 0) amounts[i] = amounts[i] + swaps[i].pools[j].amountIn;
+                amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
+            }
+        }
     }
 
     /// @custom:assembly Efficient single swap call
