@@ -1,8 +1,15 @@
 # Split Swap Router ![Foundry](https://github.com/manifoldfinance/SplitOrderRouter/actions/workflows/test.yml/badge.svg?branch=main)
 
-### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 pools (i.e. Sushiswap, Uniswap V2, Uniswap V3 [0.3%, 0.05%, 1%])
+### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
+
+Pools 
+- Sushiswap
+- Uniswap V2
+- Uniswap V3 0.30%
+- Uniswap V3 0.05%
+- Uniswap V3 1.00%
 
 ## Ethereum, Polygon, Optimism, Arbitrum
 Using the path given, `SplitOrderV3Router` optimally splits swaps across pools from Uniswap V3, Uniswap V2 and Sushiswap.
