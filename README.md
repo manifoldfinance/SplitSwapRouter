@@ -1,6 +1,6 @@
-# Split Order Router ![Foundry](https://github.com/manifoldfinance/SplitOrderRouter/actions/workflows/test.yml/badge.svg?branch=main)
+# Split Swap Router ![Foundry](https://github.com/manifoldfinance/SplitOrderRouter/actions/workflows/test.yml/badge.svg?branch=main)
 
-### Optimal Order split between 3 Uni V3 pools and 2 Uni V2 pools (i.e. Sushiswap, Uniswap V2, Uniswap V3 [0.3%, 0.05%, 1%])
+### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 pools (i.e. Sushiswap, Uniswap V2, Uniswap V3 [0.3%, 0.05%, 1%])
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
@@ -50,21 +50,6 @@ Test result: ok. 17 passed; 0 failed; finished in 50.81s
 ```bash
 forge script script/Deploy.s.sol:DeployScript --rpc-url $ETH_RPC_URL
 ```
-```bash
-Script ran successfully.
-
-==========================
-
-Estimated total gas used for script: 1644061
-
-Estimated amount required: 0.028836324059142178 ETH
-
-==========================
-
-SIMULATION COMPLETE. To broadcast these transactions, add --broadcast and wallet configuration(s) to the previous command. See forge script --help for more.
-
-Transactions saved to: broadcast/Deploy.s.sol/1/run-latest.json
-```
 
 ## Deploy and verify on etherscan
 Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
@@ -72,3 +57,25 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 ```bash
 ./deploy.sh
 ```
+
+### Todo
+
+- [ ] Documentation of derived math and code 
+- [ ] Gas checks for adding splits (more efficient method needed)
+- [ ] Add income potential (retain % of coins gained from split)
+- [ ] MockERC20 and factories for faster fuzz testing
+- [ ] Weth10 integration
+- [ ] Gas optimisation
+
+### In Progress
+
+- [ ] Benchmark performance vs 1inch v4
+
+### Done ✓
+
+- [x] Derived uint equation for amounts to sync prices and optimally splitting equal price markets via cumulative reserve ratios
+- [x] IUniswapV2Router compatible
+- [x] Split swaps between Sushiswap, Uniswap V2 and Uniswap V3
+- [x] Edge case handling
+- [x] Testing
+- [x] Cross-chain compatible
