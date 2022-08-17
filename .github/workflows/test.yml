@@ -10,6 +10,7 @@ on:
 env:
   FOUNDRY_PROFILE: ci
   ETH_RPC_URL:  ${{ secrets.ETH_RPC_URL }}
+  ETHERSCAN_API: ${{ secrets.ETHERSCAN_API }}
 
 jobs:
   check:
@@ -36,5 +37,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitOrderV3RouterFuzzTest
+          forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitOrderV3RouterFuzzTest --etherscan-api-key $ETHERSCAN_API
         id: test
