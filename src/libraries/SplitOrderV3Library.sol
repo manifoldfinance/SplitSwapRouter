@@ -7,7 +7,6 @@ Based on UniswapV2Library: https://github.com/Uniswap/v2-periphery/blob/master/c
 */
 
 import "../interfaces/IUniswapV3Pool.sol";
-import "../interfaces/IUniswapV3Factory.sol";
 import "../interfaces/IUniswapV2Pair.sol";
 import "../interfaces/IUniswapV2Factory.sol";
 import "./Babylonian.sol";
@@ -42,7 +41,6 @@ library SplitOrderV3Library {
     }
 
     address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984; // Ethereum mainnet, Optimism, Arbitrum, Polygon address
-    // bytes32 internal constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54; // V3 init code hash
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
     uint256 internal constant EST_SWAP_GAS_USED = 100000;
 

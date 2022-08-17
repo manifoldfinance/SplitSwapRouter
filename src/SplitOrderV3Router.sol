@@ -494,21 +494,20 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     // first v2 swap amountIn has been transfered to pair
                     // subseqent swaps will need to transfer to next pair
-                    uint256 balBefore = ERC20(swaps[i].tokenOut).balanceOf(to);
+                    // uint256 balBefore = ERC20(swaps[i].tokenOut).balanceOf(to);
                     if (_isNonZero(i))
                         ERC20(swaps[i].tokenIn).safeTransfer(swaps[i].pools[j].pair, swaps[i].pools[j].amountIn);
                     _swapSingle(swaps[i].isReverse, to, swaps[i].pools[j].pair, swaps[i].pools[j].amountOut); // single v2 swap
-                    // amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
-                    amounts[_inc(i)] = amounts[_inc(i)] + ERC20(swaps[i].tokenOut).balanceOf(to) - balBefore;
+                    amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
+                    // amounts[_inc(i)] = amounts[_inc(i)] + ERC20(swaps[i].tokenOut).balanceOf(to) - balBefore;
                 }
             }
             // V3 swaps
             for (uint256 j = 2; j < 5; j = _inc(j)) {
-                uint24 fee = uint24(SplitOrderV3Library.getFee(j));
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     uint256 amountOut = _swapUniV3(
                         swaps[i].isReverse,
-                        fee,
+                        uint24(SplitOrderV3Library.getFee(j)),
                         to,
                         swaps[i].tokenIn,
                         swaps[i].tokenOut,
@@ -772,12 +771,16 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                         ERC20(swaps[i].tokenIn).safeTransfer(swaps[i].pools[j].pair, swaps[i].pools[j].amountIn);
                     uint256 amountOut;
                     {
-                        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(swaps[i].pools[j].pair).getReserves();
-                        (uint256 reserveIn, uint256 reserveOut) = swaps[i].isReverse
-                            ? (reserve1, reserve0)
-                            : (reserve0, reserve1);
-                        uint256 amountIn = ERC20(swaps[i].tokenIn).balanceOf(swaps[i].pools[j].pair) - reserveIn;
-                        amountOut = SplitOrderV3Library.getAmountOut(amountIn, reserveIn, reserveOut);
+                        (uint256 reserveIn, uint256 reserveOut, ) = IUniswapV2Pair(swaps[i].pools[j].pair)
+                            .getReserves();
+                        (reserveIn, reserveOut) = swaps[i].isReverse
+                            ? (reserveOut, reserveIn)
+                            : (reserveIn, reserveOut);
+                        amountOut = SplitOrderV3Library.getAmountOut(
+                            ERC20(swaps[i].tokenIn).balanceOf(swaps[i].pools[j].pair) - reserveIn,
+                            reserveIn,
+                            reserveOut
+                        );
                     }
                     _swapSingle(swaps[i].isReverse, to, swaps[i].pools[j].pair, amountOut); // single v2 swap
                     amounts[_inc(i)] = amounts[_inc(i)] + ERC20(swaps[i].tokenOut).balanceOf(to) - balBefore;
