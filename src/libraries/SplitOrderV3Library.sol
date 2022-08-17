@@ -308,14 +308,24 @@ library SplitOrderV3Library {
         }
     }
 
+    function isContract(address _addr) internal view returns (bool) {
+        uint32 size;
+        assembly {
+            size := extcodesize(_addr)
+        }
+        return (size > 0);
+    }
+
     function _getReserves(bool isReverse, Pool[5] memory pools) internal view returns (Reserve[5] memory reserves) {
         // 2 V2 pools
         for (uint256 i; i < 2; i = _inc(i)) {
+            if (!isContract(pools[i].pair)) continue;
             (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(pools[i].pair).getReserves();
             (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
         }
         // 4 V3 pools
         for (uint256 i = 2; i < 5; i = _inc(i)) {
+            if (!isContract(pools[i].pair)) continue;
             uint160 sqrtPriceX96 = (uint160(IUniswapV3Pool(pools[i].pair).slot0()) / uint160(2**96)) + uint160(1); // account for rounding error
             uint256 liquidity = uint256(IUniswapV3Pool(pools[i].pair).liquidity());
             if (_isNonZero(liquidity) && _isNonZero(sqrtPriceX96)) {
