@@ -516,7 +516,7 @@ library SplitOrderV3Library {
                 // But we dont know if the amount gained is worth the extra gas cost
                 // TODO: make space for amount gain vs gas cost
                 (prevAmountOut, amountsIn, amountsOut) = _splitRouteOut(
-                    i,
+                    _dec(i),
                     amountIn,
                     cumulativeAmount,
                     index,

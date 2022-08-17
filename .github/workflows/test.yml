@@ -36,5 +36,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -f "$ETH_RPC_URL" -vvv
+          forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitOrderV3RouterFuzzTest
         id: test

@@ -137,13 +137,13 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         address to = address(this);
         uint256 deadline = block.timestamp;
         uint256[] memory amounts = router.swapETHForExactTokens{ value: amountIn }(
-            router.getAmountsOut(amountIn, path)[1] - 1,
+            routerOld.getAmountsOut(amountIn, path)[1] * 4 / 5,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapETHForExactTokens{ value: amountIn }(
-            routerOld.getAmountsOut(amountIn, path)[1] - 1,
+            routerOld.getAmountsOut(amountIn, path)[1] * 4 / 5,
             path,
             to,
             deadline
@@ -216,14 +216,14 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         usdc.approve(address(router), totalUSDC / 2);
         usdc.approve(address(routerOld), totalUSDC / 2);
         uint256[] memory amounts = router.swapTokensForExactETH(
-            router.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] * 4 / 5,
             totalUSDC / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactETH(
-            routerOld.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] * 4 / 5,
             totalUSDC / 2,
             path,
             to,
@@ -304,14 +304,14 @@ contract SplitOrderV3RouterFuzzTest is DSTest {
         usdc.approve(address(router), totalUSDC / 2);
         usdc.approve(address(routerOld), totalUSDC / 2);
         uint256[] memory amounts = router.swapTokensForExactTokens(
-            router.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] * 4 / 5,
             totalUSDC / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactTokens(
-            routerOld.getAmountsOut(totalUSDC / 2, path)[1] - 1,
+            routerOld.getAmountsOut(totalUSDC / 2, path)[1] * 4 / 5,
             totalUSDC / 2,
             path,
             to,
