@@ -418,8 +418,8 @@ library SplitOrderV3Library {
                     reserves[i].reserveOut,
                     getFee(i)
                 );
-                if (i == 3) {
-                    // 0.05 % pool potentially crosses more ticks, lowering expected output (add margin of error 0.01% of amountIn)
+                if (i == 3 && _isNonZero(amountsOutSingleSwap[i])) {
+                    // 0.05 % pool potentially crosses more ticks, lowering expected output (add margin of error 0.1% of amountIn)
                     amountsOutSingleSwap[i] = amountsOutSingleSwap[i] - amountsOutSingleSwap[i] / 1000;
                 }
             }
@@ -761,7 +761,7 @@ library SplitOrderV3Library {
                     reserves[i].reserveOut,
                     getFee(i)
                 );
-                if (i == 3) {
+                if (i == 3 && _isNonZero(amountsInSingleSwap[i])) {
                     // 0.05 % pool potentially crosses more ticks, lowering expected output (add margin of error 0.01% of amountIn)
                     amountsInSingleSwap[i] = amountsInSingleSwap[i] + amountsInSingleSwap[i] / 1000;
                 }
