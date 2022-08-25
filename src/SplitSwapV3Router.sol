@@ -9,13 +9,13 @@ Optimal split order router for sushiswap, uni v2 (or fork) and uni v3 pools
 import "./ERC20.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
-import "./libraries/SplitOrderV3Library.sol";
+import "./libraries/SplitSwapV3Library.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
-/// @title SplitOrderV3Router
+/// @title SplitSwapV3Router
 /// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>
-/// @notice Splits swap order optimally across 2 uniV2 and 4 uniV3 pools (IUniswapV2Router compatible)
-contract SplitOrderV3Router is IUniswapV3SwapCallback {
+/// @notice Splits swap order optimally across sushiswap, uniswap V2 and V3 (IUniswapV2Router compatible)
+contract SplitSwapV3Router is IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
 
     // Custom errors save gas, encoding to 4 bytes
@@ -30,24 +30,33 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     error InsufficientLiquidity();
     error InsufficientOutputAmount();
 
+    /// @dev UniswapV2 pool 4 byte swap selector
     bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
+    /// @dev Wrapped native token address
     address internal immutable WETH09;
+    /// @dev Sushiswap factory address
     address internal immutable SUSHI_FACTORY;
+    /// @dev UniswapV2 factory address
     address internal immutable BACKUP_FACTORY; // uniswap v2 factory
     /// @dev The minimum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MIN_TICK)
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
     /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+    /// @dev Sushiswap factory init pair code hash
     bytes32 internal immutable SUSHI_FACTORY_HASH;
+    /// @dev UniswapV2 factory init pair code hash
     bytes32 internal immutable BACKUP_FACTORY_HASH;
+    /// @dev Estimated gas used for average single swap
     uint256 internal constant EST_SWAP_GAS_USED = 140000;
+    /// @dev Minimum pool liquidity to interact with
     uint256 internal constant MIN_LIQUIDITY = 1000;
 
     /// @notice constructor arguments for cross-chain deployment
-    /// @param weth wrapped native token address (e.g. Eth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)
-    /// @param sushiFactory Sushiswap factory address (e.g. Eth: 0xc35DADB65012eC5796536bD9864eD8773aBc74C4)
-    /// @param backupFactory Uniswap V2 (or equiv.) (e.g. Eth: 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f)
-    /// @param backupFactoryHash Initial code hash of backup (uniV2) factory (e.g. Eth: 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f)
+    /// @param weth wrapped native token address (e.g. Eth mainnet: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)
+    /// @param sushiFactory Sushiswap factory address (e.g. Eth mainnet: 0xc35DADB65012eC5796536bD9864eD8773aBc74C4)
+    /// @param backupFactory Uniswap V2 (or equiv.) (e.g. Eth mainnet: 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f)
+    /// @param sushiFactoryHash Initial code hash of sushi factory (e.g. Eth mainnet: 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303)SplitSwapV3Router
+    /// @param backupFactoryHash Initial code hash of backup (uniV2) factory (e.g. Eth mainnet: 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f)SplitSwapV3Router
     constructor(
         address weth,
         address sushiFactory,
@@ -62,15 +71,20 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         BACKUP_FACTORY_HASH = backupFactoryHash;
     }
 
+    /// @notice reference sushi factory address (IUniswapV2Router compliance)
     function factory() external view returns (address) {
         return SUSHI_FACTORY;
     }
 
+    /// @notice reference wrapped native token address (IUniswapV2Router compliance)
     function WETH() external view returns (address) {
         return WETH09;
     }
 
     /// @dev Callback for Uniswap V3 pool.
+    /// @param amount0Delta amount of token0 (-ve indicates amountOut i.e. already transferred from v3 pool to here)
+    /// @param amount1Delta amount of token0 (-ve indicates amountOut i.e. already transferred from v3 pool to here)
+    /// @param data tokenIn,tokenOut and fee packed bytes
     function uniswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
@@ -82,8 +96,8 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             uint24 fee;
             address tokenOut;
             (tokenIn, tokenOut, fee) = _decode(data); // custom decode packed (address, address, uint24)
-            (address token0, address token1) = SplitOrderV3Library.sortTokens(tokenIn, tokenOut);
-            pool = SplitOrderV3Library.uniswapV3PoolAddress(token0, token1, fee); // safest way to check pool address is valid and pool was the msg sender
+            (address token0, address token1) = SplitSwapV3Library.sortTokens(tokenIn, tokenOut);
+            pool = SplitSwapV3Library.uniswapV3PoolAddress(token0, token1, fee); // safest way to check pool address is valid and pool was the msg sender
         }
         if (msg.sender != pool) revert ExecuteNotAuthorized();
         // uni v3 optimistically sends tokenOut funds, then calls this function for the tokenIn amount
@@ -91,7 +105,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         if (amount1Delta > 0) ERC20(tokenIn).safeTransfer(msg.sender, uint256(amount1Delta));
     }
 
-    /// @notice Ensures deadline is not passed, otherwise revert. (0 = no deadline)
+    /// @notice Ensures deadline is not passed, otherwise revert.
     /// @dev Modifier has been replaced with a function for gas efficiency
     /// @param deadline Unix timestamp in seconds for transaction to execute before
     function ensure(uint256 deadline) internal view {
@@ -121,7 +135,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         if (IUniswapV2Factory(factory0).getPair(tokenA, tokenB) == address(0)) {
             IUniswapV2Factory(factory0).createPair(tokenA, tokenB);
         }
-        (uint256 reserveA, uint256 reserveB) = SplitOrderV3Library.getReserves(
+        (uint256 reserveA, uint256 reserveB) = SplitSwapV3Library.getReserves(
             factory0,
             tokenA,
             tokenB,
@@ -130,9 +144,9 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         if (_isZero(reserveA) && _isZero(reserveB)) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
-            uint256 amountBOptimal = SplitOrderV3Library.quote(amountADesired, reserveA, reserveB);
+            uint256 amountBOptimal = SplitSwapV3Library.quote(amountADesired, reserveA, reserveB);
             if (amountBOptimal > amountBDesired) {
-                uint256 amountAOptimal = SplitOrderV3Library.quote(amountBDesired, reserveB, reserveA);
+                uint256 amountAOptimal = SplitSwapV3Library.quote(amountBDesired, reserveB, reserveA);
                 if (amountAOptimal > amountADesired) revert InsufficientAAmount();
                 if (amountAOptimal < amountAMin) revert InsufficientAAmount();
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
@@ -175,7 +189,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     {
         ensure(deadline);
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
-        address pair = SplitOrderV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH);
+        address pair = SplitSwapV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH);
         ERC20(tokenA).safeTransferFrom(msg.sender, pair, amountA);
         ERC20(tokenB).safeTransferFrom(msg.sender, pair, amountB);
         liquidity = IUniswapV2Pair(pair).mint(to);
@@ -218,7 +232,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             amountTokenMin,
             amountETHMin
         );
-        address pair = SplitOrderV3Library.pairFor(SUSHI_FACTORY, token, weth, SUSHI_FACTORY_HASH);
+        address pair = SplitSwapV3Library.pairFor(SUSHI_FACTORY, token, weth, SUSHI_FACTORY_HASH);
         ERC20(token).safeTransferFrom(msg.sender, pair, amountToken);
         IWETH(weth).deposit{ value: amountETH }();
         ERC20(weth).safeTransfer(pair, amountETH);
@@ -248,10 +262,10 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         uint256 deadline
     ) public virtual returns (uint256 amountA, uint256 amountB) {
         ensure(deadline);
-        address pair = SplitOrderV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH);
+        address pair = SplitSwapV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH);
         ERC20(pair).safeTransferFrom(msg.sender, pair, liquidity); // send liquidity to pair
         (uint256 amount0, uint256 amount1) = IUniswapV2Pair(pair).burn(to);
-        (address token0, ) = SplitOrderV3Library.sortTokens(tokenA, tokenB);
+        (address token0, ) = SplitSwapV3Library.sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
         if (amountA < amountAMin) revert InsufficientAAmount();
         if (amountB < amountBMin) revert InsufficientBAmount();
@@ -319,7 +333,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountA, uint256 amountB) {
-        IUniswapV2Pair(SplitOrderV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH)).permit(
+        IUniswapV2Pair(SplitSwapV3Library.pairFor(SUSHI_FACTORY, tokenA, tokenB, SUSHI_FACTORY_HASH)).permit(
             msg.sender,
             address(this),
             approveMax ? type(uint256).max : liquidity,
@@ -356,7 +370,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountToken, uint256 amountETH) {
-        IUniswapV2Pair(SplitOrderV3Library.pairFor(SUSHI_FACTORY, token, WETH09, SUSHI_FACTORY_HASH)).permit(
+        IUniswapV2Pair(SplitSwapV3Library.pairFor(SUSHI_FACTORY, token, WETH09, SUSHI_FACTORY_HASH)).permit(
             msg.sender,
             address(this),
             approveMax ? type(uint256).max : liquidity,
@@ -416,7 +430,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         bytes32 r,
         bytes32 s
     ) external virtual returns (uint256 amountETH) {
-        IUniswapV2Pair(SplitOrderV3Library.pairFor(SUSHI_FACTORY, token, WETH09, SUSHI_FACTORY_HASH)).permit(
+        IUniswapV2Pair(SplitSwapV3Library.pairFor(SUSHI_FACTORY, token, WETH09, SUSHI_FACTORY_HASH)).permit(
             msg.sender,
             address(this),
             approveMax ? type(uint256).max : liquidity,
@@ -435,7 +449,11 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         );
     }
 
-    /// @dev single swap for uni v2 pair
+    /// @dev single swap for uni v2 pair. Requires the initial amount to have already been sent to the first pair.
+    /// @param isReverse true if token0 == tokenOut
+    /// @param to swap recipient
+    /// @param pair pair address
+    /// @param amountOut expected amount out
     function _swapSingle(
         bool isReverse,
         address to,
@@ -447,6 +465,13 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     }
 
     /// @dev single swap for uni v3 pool
+    /// @param isReverse true if token0 == tokenOut
+    /// @param fee fee of pool as a ratio of 1000000
+    /// @param to swap recipient
+    /// @param tokenIn token in address
+    /// @param tokenOut token out address
+    /// @param pair pair address
+    /// @param amountIn amount of tokenIn
     function _swapUniV3(
         bool isReverse,
         uint24 fee,
@@ -468,10 +493,10 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         amountOut = isReverse ? uint256(-(amount0)) : uint256(-(amount1));
     }
 
-    /// @notice Internal core swap. Requires the initial amount to have already been sent to the first pair (for v2 pairs).
+    /// @dev Internal core swap. Requires the initial amount to have already been sent to the first pair (for v2 pairs).
     /// @param _to Address of receiver
     /// @param swaps Array of user swap data
-    function _swap(address _to, SplitOrderV3Library.Swap[] memory swaps)
+    function _swap(address _to, SplitSwapV3Library.Swap[] memory swaps)
         internal
         virtual
         returns (uint256[] memory amounts)
@@ -502,7 +527,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     uint256 amountOut = _swapUniV3(
                         swaps[i].isReverse,
-                        uint24(SplitOrderV3Library.getFee(j)),
+                        uint24(SplitSwapV3Library.getFee(j)),
                         to,
                         swaps[i].tokenIn,
                         swaps[i].tokenOut,
@@ -531,7 +556,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         uint256 deadline
     ) external virtual returns (uint256[] memory amounts) {
         ensure(deadline);
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountIn,
@@ -568,7 +593,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
     ) external virtual returns (uint256[] memory amounts) {
         ensure(deadline);
 
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsIn(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountOut,
@@ -604,7 +629,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[0] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             msg.value,
@@ -639,7 +664,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsIn(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountOut,
@@ -679,7 +704,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountIn,
@@ -718,7 +743,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[0] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsIn(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountOut,
@@ -743,7 +768,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountIn);
     }
 
-    function _swapSupportingFeeOnTransferTokens(address _to, SplitOrderV3Library.Swap[] memory swaps)
+    function _swapSupportingFeeOnTransferTokens(address _to, SplitSwapV3Library.Swap[] memory swaps)
         internal
         virtual
         returns (uint256[] memory amounts)
@@ -771,7 +796,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
                         (reserveIn, reserveOut) = swaps[i].isReverse
                             ? (reserveOut, reserveIn)
                             : (reserveIn, reserveOut);
-                        amountOut = SplitOrderV3Library.getAmountOut(
+                        amountOut = SplitSwapV3Library.getAmountOut(
                             ERC20(swaps[i].tokenIn).balanceOf(swaps[i].pools[j].pair) - reserveIn,
                             reserveIn,
                             reserveOut
@@ -783,7 +808,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
             }
             // V3 swaps
             for (uint256 j = 2; j < 5; j = _inc(j)) {
-                uint24 fee = uint24(SplitOrderV3Library.getFee(j));
+                uint24 fee = uint24(SplitSwapV3Library.getFee(j));
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
                     uint256 amountOut = _swapUniV3(
                         swaps[i].isReverse,
@@ -815,7 +840,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         uint256 deadline
     ) external virtual {
         ensure(deadline);
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountIn,
@@ -850,7 +875,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[0] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             msg.value,
@@ -884,7 +909,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         ensure(deadline);
         address weth = WETH09;
         if (path[_dec(path.length)] != weth) revert InvalidPath();
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountIn,
@@ -907,37 +932,54 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         SafeTransferLib.safeTransferETH(to, amountOut);
     }
 
+    /// @notice Zero fee quote
+    /// @param amountA amount In
+    /// @param reserveA reserve of tokenA
+    /// @param reserveB reserve of tokenB
     function quote(
         uint256 amountA,
         uint256 reserveA,
         uint256 reserveB
     ) external pure virtual returns (uint256 amountB) {
-        return SplitOrderV3Library.quote(amountA, reserveA, reserveB);
+        return SplitSwapV3Library.quote(amountA, reserveA, reserveB);
     }
 
+    /// @notice Exact amount out, from Sushiswap, at current state, accounting for fee and slippage
+    /// @param amountIn amount In
+    /// @param reserveIn reserve of tokenIn
+    /// @param reserveOut reserve of tokenOut
     function getAmountOut(
         uint256 amountIn,
         uint256 reserveIn,
         uint256 reserveOut
     ) external pure virtual returns (uint256 amountOut) {
-        return SplitOrderV3Library.getAmountOut(amountIn, reserveIn, reserveOut);
+        return SplitSwapV3Library.getAmountOut(amountIn, reserveIn, reserveOut);
     }
 
+    /// @notice Exact amount in, from Sushiswap, at current state, accounting for fee and slippage
+    /// @param amountOut amount Out
+    /// @param reserveIn reserve of tokenIn
+    /// @param reserveOut reserve of tokenOut
+    /// @return amountIn
     function getAmountIn(
         uint256 amountOut,
         uint256 reserveIn,
         uint256 reserveOut
     ) external pure virtual returns (uint256 amountIn) {
-        return SplitOrderV3Library.getAmountIn(amountOut, reserveIn, reserveOut);
+        return SplitSwapV3Library.getAmountIn(amountOut, reserveIn, reserveOut);
     }
 
+    /// @notice Optimal Amounts out, from split swap, at current state, accounting for fees and slippage
+    /// @param amountIn amount In
+    /// @param path array of token addresses representing path of swap
+    /// @return amounts array corresponding to path
     function getAmountsOut(uint256 amountIn, address[] calldata path)
         external
         view
         virtual
         returns (uint256[] memory amounts)
     {
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsOut(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsOut(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountIn,
@@ -955,13 +997,17 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         }
     }
 
+    /// @notice Optimal Amounts in, from split swap, at current state, accounting for fees and slippage
+    /// @param amountOut amount Out
+    /// @param path array of token addresses representing path of swap
+    /// @return amounts array corresponding to path
     function getAmountsIn(uint256 amountOut, address[] calldata path)
         external
         view
         virtual
         returns (uint256[] memory amounts)
     {
-        SplitOrderV3Library.Swap[] memory swaps = SplitOrderV3Library.getSwapsIn(
+        SplitSwapV3Library.Swap[] memory swaps = SplitSwapV3Library.getSwapsIn(
             SUSHI_FACTORY,
             BACKUP_FACTORY,
             amountOut,
@@ -973,7 +1019,7 @@ contract SplitOrderV3Router is IUniswapV3SwapCallback {
         amounts = new uint256[](_inc(length));
         for (uint256 i; i < length; i = _inc(i)) {
             for (uint256 j; j < 5; j = _inc(j)) {
-                if (i == 0) amounts[i] = amounts[i] + swaps[i].pools[j].amountIn;
+                if (_isZero(i)) amounts[i] = amounts[i] + swaps[i].pools[j].amountIn;
                 amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
             }
         }

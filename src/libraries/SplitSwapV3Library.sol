@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 /**
-Optimal split order library to support SplitOrderV3Router
+Optimal split swap library to support SplitSwapV3Router
 Based on UniswapV2Library: https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol
 */
 
@@ -11,10 +11,10 @@ import "../interfaces/IUniswapV2Pair.sol";
 import "../interfaces/IUniswapV2Factory.sol";
 import "./Babylonian.sol";
 
-/// @title SplitOrderLibrary
+/// @title SplitSwapV3Library
 /// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>
-/// @notice Optimal MEV library to support SplitOrderV3Router
-library SplitOrderV3Library {
+/// @notice Optimal MEV library to support SplitSwapV3Router
+library SplitSwapV3Library {
     error Overflow();
     error ZeroAmount();
     error InvalidPath();
@@ -22,17 +22,29 @@ library SplitOrderV3Library {
     error IdenticalAddresses();
     error InsufficientLiquidity();
 
+    /// @notice struct for pool reserves
+    /// @param reserveIn amount of reserves (or virtual reserves) in pool for tokenIn
+    /// @param reserveOut amount of reserves (or virtual reserves) in pool for tokenOut
     struct Reserve {
         uint256 reserveIn;
         uint256 reserveOut;
     }
 
+    /// @notice struct for pool swap info
+    /// @param pair pair / pool address (sushi, univ2, univ3 (3 pools))
+    /// @param amountIn amount In for swap
+    /// @param amountOut amount Out for swap
     struct Pool {
-        address pair; // pair (sushi, univ2, univ3 (4 pools))
-        uint256 amountIn; // amount In for each pair
-        uint256 amountOut; // amount Out for each pair
+        address pair;
+        uint256 amountIn;
+        uint256 amountOut;
     }
 
+    /// @notice struct for swap info
+    /// @param isReverse true if token0 == tokenOut
+    /// @param tokenIn address of token In
+    /// @param tokenOut address of token Out
+    /// @param pools 5 element array of pool split swap info
     struct Swap {
         bool isReverse;
         address tokenIn;
@@ -40,11 +52,17 @@ library SplitOrderV3Library {
         Pool[5] pools; // 5 pools (sushi, univ2, univ3 (3 pools))
     }
 
-    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984; // Ethereum mainnet, Optimism, Arbitrum, Polygon address
+    /// @dev Ethereum mainnet, Optimism, Arbitrum, Polygon address
+    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    /// @dev /// @dev Minimum pool liquidity to interact with
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
-    uint256 internal constant EST_SWAP_GAS_USED = 100000;
+    /// @dev Estimated gas used for average single swap
+    uint256 internal constant EST_SWAP_GAS_USED = 140000;
 
-    /// @notice calculate uinswap v3 pool address
+    /// @dev calculate uinswap v3 pool address
+    /// @param token0 address of token0
+    /// @param token1 address of token1
+    /// @param fee pool fee as ratio of 1000000
     function uniswapV3PoolAddress(
         address token0,
         address token1,
@@ -69,8 +87,8 @@ library SplitOrderV3Library {
         }
     }
 
-    /// @notice get fee for pool as a fraction of 1000000 (i.e. 0.3% -> 3000)
-    /// Reference order is hard coded as sushi, univ2, univ3 (0.3%), univ3 (0.05%), univ3 (1%)
+    /// @dev get fee for pool as a fraction of 1000000 (i.e. 0.3% -> 3000)
+    /// @param index Reference order is hard coded as sushi, univ2, univ3 (0.3%), univ3 (0.05%), univ3 (1%)
     function getFee(uint256 index) internal pure returns (uint256) {
         if (index <= 2) return 3000;
         // sushi, univ2 and 0.3% univ3
@@ -190,6 +208,17 @@ library SplitOrderV3Library {
         amountB = (amountA * reserveB) / reserveA;
     }
 
+    function quoteFee(
+        uint256 amountA,
+        uint256 reserveA,
+        uint256 reserveB,
+        uint256 fee
+    ) internal pure returns (uint256 amountB) {
+        if (_isZero(amountA)) revert ZeroAmount();
+        if (_isZero(reserveA) || _isZero(reserveB)) revert InsufficientLiquidity();
+        amountB = ((1000000 - fee) * amountA * reserveB) / (1000000 * reserveA);
+    }
+
     /// @notice Given an input asset amount, returns the maximum output amount of the other asset (accounting for fees) given reserves
     /// @dev Require replaced with revert custom error
     /// @param amountIn Amount of token in
@@ -306,6 +335,8 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @dev checks codesize for contract existence
+    /// @param _addr address of contract to check
     function isContract(address _addr) internal view returns (bool) {
         uint32 size;
         assembly {
@@ -314,6 +345,9 @@ library SplitOrderV3Library {
         return (size > 0);
     }
 
+    /// @dev populates and returns Reserve struct array for each pool address
+    /// @param isReverse true if token0 == tokenOut
+    /// @param pools 5 element array of Pool structs populated with pool addresses
     function _getReserves(bool isReverse, Pool[5] memory pools) internal view returns (Reserve[5] memory reserves) {
         // 2 V2 pools
         for (uint256 i; i < 2; i = _inc(i)) {
@@ -324,18 +358,25 @@ library SplitOrderV3Library {
         // 4 V3 pools
         for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (!isContract(pools[i].pair)) continue;
-            uint160 sqrtPriceX96 = (uint160(IUniswapV3Pool(pools[i].pair).slot0()) / uint160(2**96)) + uint160(1); // account for rounding error
+            uint160 sqrtPriceX96 = uint160(IUniswapV3Pool(pools[i].pair).slot0());
+            if (sqrtPriceX96 < 2**96) continue; // price too small
+            sqrtPriceX96 = (sqrtPriceX96 / uint160(2**96)) + uint160(1); // account for rounding error
             uint256 liquidity = uint256(IUniswapV3Pool(pools[i].pair).liquidity());
-            if (_isNonZero(liquidity) && _isNonZero(sqrtPriceX96)) {
-                (uint256 reserve0, uint256 reserve1) = (liquidity / sqrtPriceX96, liquidity * sqrtPriceX96);
-                (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse
-                    ? (reserve1, reserve0)
-                    : (reserve0, reserve1);
+            if (_isNonZero(liquidity)) {
+                unchecked {
+                    (uint256 reserve0, uint256 reserve1) = (
+                        liquidity / sqrtPriceX96,
+                        liquidity * uint256(sqrtPriceX96)
+                    );
+                    (reserves[i].reserveIn, reserves[i].reserveOut) = isReverse
+                        ? (reserve1, reserve0)
+                        : (reserve0, reserve1);
+                }
             }
         }
     }
 
-    /// @notice calculate pool addresses for tokenIn/Out & factory/fee
+    /// @dev calculate pool addresses for token0/1 & factory/fee
     function _getPools(
         address factory0,
         address factory1,
@@ -396,6 +437,7 @@ library SplitOrderV3Library {
         }
     }
 
+    /// @dev sorts possible swaps by best price, then assigns optimal split
     function _optimalRouteOut(uint256 amountIn, Reserve[5] memory reserves)
         internal
         pure
@@ -445,7 +487,7 @@ library SplitOrderV3Library {
         )
     {
         uint256 cumAmountIn;
-        // loop through active pools (indexed 5 (best price) to j (current pool))
+        // loop through active pools (indexed 4 (best price) to j (current pool))
         for (uint256 j = 4; j > i; j = _dec(j)) {
             uint256 reserveIn = reserves[index[j]].reserveIn;
             uint256 cumReserveIn = reserveIn;
@@ -718,7 +760,7 @@ library SplitOrderV3Library {
         }
     }
 
-    /// @notice returns sorted index of amount array (in ascending order)
+    /// @dev returns sorted index of amount array (in ascending order)
     function _sortArray(uint256[5] memory arr_) internal pure returns (uint256[5] memory index) {
         uint256[5] memory arr;
         index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4)];
@@ -739,7 +781,7 @@ library SplitOrderV3Library {
         }
     }
 
-    /// @notice sorts possible swaps by best price, then assigns optimal split
+    /// @dev sorts possible swaps by best price, then assigns optimal split
     function _optimalRouteIn(uint256 amountOut, Reserve[5] memory reserves)
         internal
         pure
@@ -771,7 +813,7 @@ library SplitOrderV3Library {
         (amountsIn, amountsOut) = _splitSwapIn(amountOut, amountsInSingleSwap, reserves);
     }
 
-    /// @notice returns amount In of pool 1 required to sync prices with pool 2
+    /// @dev returns amount In of pool 1 required to sync prices with pool 2
     /// @param x1 reserveIn pool 1
     /// @param y1 reserveOut pool 1
     /// @param x2 reserveIn pool 2
@@ -793,7 +835,7 @@ library SplitOrderV3Library {
     }
 
     /// @custom:gas Uint256 zero check gas saver
-    /// @notice Uint256 zero check gas saver
+    /// @dev Uint256 zero check gas saver
     /// @param value Number to check
     function _isZero(uint256 value) internal pure returns (bool boolValue) {
         assembly ("memory-safe") {
@@ -802,7 +844,7 @@ library SplitOrderV3Library {
     }
 
     /// @custom:gas Uint256 not zero check gas saver
-    /// @notice Uint256 not zero check gas saver
+    /// @dev Uint256 not zero check gas saver
     /// @param value Number to check
     function _isNonZero(uint256 value) internal pure returns (bool boolValue) {
         assembly ("memory-safe") {
@@ -811,7 +853,7 @@ library SplitOrderV3Library {
     }
 
     /// @custom:gas Unchecked increment gas saver
-    /// @notice Unchecked increment gas saver for loops
+    /// @dev Unchecked increment gas saver for loops
     /// @param i Number to increment
     function _inc(uint256 i) internal pure returns (uint256) {
         unchecked {
@@ -820,7 +862,7 @@ library SplitOrderV3Library {
     }
 
     /// @custom:gas Unchecked decrement gas saver
-    /// @notice Unchecked decrement gas saver for loops
+    /// @dev Unchecked decrement gas saver for loops
     /// @param i Number to decrement
     function _dec(uint256 i) internal pure returns (uint256) {
         unchecked {

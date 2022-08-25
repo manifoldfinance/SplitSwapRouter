@@ -2,12 +2,12 @@
 pragma solidity ^0.8.13;
 
 import "../lib/forge-std/src/Script.sol";
-import "../src/SplitOrderV3Router.sol";
+import "../src/SplitSwapV3Router.sol";
 
 contract DeployV3Script is Script {
     function run() public {
         vm.startBroadcast();
-        new SplitOrderV3Router(
+        new SplitSwapV3Router(
             0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac,
             0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f,
