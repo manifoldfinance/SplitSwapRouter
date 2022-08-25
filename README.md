@@ -4,6 +4,8 @@
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
+[Solidity math derivations documentation](docs/math.md)
+
 Pools 
 - Sushiswap
 - Uniswap V2
