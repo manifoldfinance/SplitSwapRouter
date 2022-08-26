@@ -4,7 +4,9 @@
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
-[Solidity math derivations documentation](docs/math.md)
+[Math derivations for application in EVM](docs/math.md)
+
+[Algorithm applying derived math](docs/algo.md)
 
 Pools 
 - Sushiswap
