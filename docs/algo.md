@@ -29,13 +29,19 @@ Note that after the first amount to sync, x1 and y1 will become the cumulative &
 
 Using the ordered pools by best price, the optimal number of splits and the corresponding amounts to sync prices, an optimal routing equation can be applied in the following pattern:
 
+### No Split (1 pool)
+
+$$ \delta x_1 = A_{in} $$
+
+where $ A_{in} $ is the user amount in.
+
 ### Single Split (2 pools)
 
 $$ \delta x_1 = A_1 + {(A_{in} - A_1) x'_1 \over x'_1 + x_2} $$
 
 $$ \delta x_2 = {(A_{in} - A_1) x_2 \over x'_1 + x_2} $$
 
-where $ A_{in} $ is the user amount in, $ A_i $ denotes amount to sync prices and:
+where $ A_i $ denotes amount to sync prices and updated reserve:
 
 $$ x'_i = x_i + A_i $$
 
@@ -47,4 +53,24 @@ $$ \delta x_2 = {A_2 x_2 \over x'_1 + x_2} + {(A_{in} - A_1 - A_2) x'_2 \over x'
 
 $$ \delta x_3 = {(A_{in} - A_1 - A_2) x_3 \over x''_1 + x'_2 + x_3} $$
 
-...
+### Tripple Split (4 pools)
+
+$$ \delta x_1 = A_1 + {A_2 x'_1 \over x'_1 + x_2} + {A_3 x''_1 \over x''_1 + x'_2 + x_3} + {(A_{in} - A_1 - A_2 - A_3) x'''_1 \over x'''_1 + x''_2 + x'_3 + x_4} $$
+
+$$ \delta x_2 = {A_2 x_2 \over x'_1 + x_2} + {A_3 x'_2 \over x''_1 + x'_2 + x_3} + {(A_{in} - A_1 - A_2 - A_3) x''_2 \over x'''_1 + x''_2 + x'_3 + x_4} $$
+
+$$ \delta x_3 = {A_3 x_3 \over x''_1 + x'_2 + x_3} + {(A_{in} - A_1 - A_2 - A_3) x'_3 \over x'''_1 + x''_2 + x'_3 + x_4} $$
+
+$$ \delta x_4 = {(A_{in} - A_1 - A_2 - A_3) x_4 \over x'''_1 + x''_2 + x'_3 + x_4} $$
+
+### Quadruple Split (5 pools)
+
+$$ \delta x_1 = A_1 + {A_2 x'_1 \over x'_1 + x_2} + {A_3 x''_1 \over x''_1 + x'_2 + x_3} + {A_4 x'''_1 \over x'''_1 + x''_2 + x'_3 + x_4} + {(A_{in} - A_1 - A_2 - A_3 - A_4) x''''_1 \over x''''_1 + x'''_2 + x''_3 + x'_4 + x_5}$$
+
+$$ \delta x_2 = {A_2 x_2 \over x'_1 + x_2} + {A_3 x'_2 \over x''_1 + x'_2 + x_3} + {A_4 x''_2 \over x'''_1 + x''_2 + x'_3 + x_4} + {(A_{in} - A_1 - A_2 - A_3 - A_4) x'''_2 \over x''''_1 + x'''_2 + x''_3 + x'_4 + x_5} $$
+
+$$ \delta x_3 = {A_3 x_3 \over x''_1 + x'_2 + x_3} + {A_4 x'_3 \over x'''_1 + x''_2 + x'_3 + x_4} + {(A_{in} - A_1 - A_2 - A_3 - A_4) x''_3 \over x''''_1 + x'''_2 + x''_3 + x'_4 + x_5} $$
+
+$$ \delta x_4 = {A_4 x_4 \over x'''_1 + x''_2 + x'_3 + x_4} + {(A_{in} - A_1 - A_2 - A_3 - A_4) x'_4 \over x''''_1 + x'''_2 + x''_3 + x'_4 + x_5}$$
+
+$$ \delta x_5 = {(A_{in} - A_1 - A_2 - A_3 - A_4) x_5 \over x''''_1 + x'''_2 + x''_3 + x'_4 + x_5} $$

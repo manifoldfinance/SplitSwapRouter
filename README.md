@@ -88,7 +88,6 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ### Todo
 
-- [ ] Documentation of derived math and code 
 - [ ] Gas checks for adding splits (more efficient method needed)
 - [ ] Add income potential (retain % of coins gained from split)
 - [ ] MockERC20 and factories for faster fuzz testing
@@ -107,3 +106,4 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 - [x] Testing
 - [x] Cross-chain compatible
 - [x] Benchmark performance vs 1inch v4
+- [x] Documentation of derived math and code 
