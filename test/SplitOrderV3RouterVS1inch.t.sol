@@ -21,6 +21,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     uint256 forkId3;
     uint256 forkId4;
     uint256 forkId5;
+    uint256 forkId6;
     SplitSwapV3Router router;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -36,7 +37,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     IUniswapV2Pair daiWeth = IUniswapV2Pair(0xC3D03e4F041Fd4cD388c549Ee2A29a9E5075882f);
     IUniswapV2Pair daiUsdc = IUniswapV2Pair(0xAaF5110db6e744ff70fB339DE037B990A20bdace);
     uint256 minLiquidity = uint256(1000);
-    uint256 margin = 9860; // margin ratio output diff, out of 10000 (e.g. 9860 == 1.4% off 1inch price)
+    uint256 margin = 9900; // margin ratio output diff, out of 10000 (e.g. 9860 == 1.4% off 1inch price)
 
     function writeTokenBalance(
         address who,
@@ -54,6 +55,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
         forkId3 = vm.createFork(rpcUrl, 15409161);
         forkId4 = vm.createFork(rpcUrl, 15409149);
         forkId5 = vm.createFork(rpcUrl, 15396936);
+        forkId6 = vm.createFork(rpcUrl, 15414959);
     }
 
     receive() external payable {}
@@ -174,4 +176,28 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
 
         assertGe(amounts[amounts.length - 1], ((uint256(1454367631491887808) * margin) / uint256(10000)));
     }
+
+    /// @dev Beat https://etherscan.io/tx/0x8ff0ece45991c4fca8df6aba595af3390d4830b3d99f613ddef4f143b4abca52
+    function testSwapExactETHForTokens6() external {
+        vm.selectFork(forkId6);
+        router = new SplitSwapV3Router(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
+            address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
+            address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
+            bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
+            bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
+        );
+        uint256 amountIn = 65000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDC;
+
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+
+        assertGe(amounts[amounts.length - 1], ((uint256(107326648907) * margin) / uint256(10000)));
+    }
+
 }
