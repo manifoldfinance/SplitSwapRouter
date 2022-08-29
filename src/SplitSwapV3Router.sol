@@ -762,7 +762,7 @@ contract SplitSwapV3Router is IUniswapV3SwapCallback {
                 ERC20(weth).safeTransfer(swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
         amounts = _swap(to, swaps);
-        if (amountOut > amounts[_dec(path.length)]) revert InsufficientOutputAmount();
+        if (msg.value < amounts[0]) revert ExcessiveInputAmount();
         // refund dust eth, if any
         if (msg.value > amountIn && (msg.value - amountIn) > 21000 * block.basefee)
             SafeTransferLib.safeTransferETH(msg.sender, msg.value - amountIn);

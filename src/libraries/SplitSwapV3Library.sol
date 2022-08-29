@@ -508,282 +508,35 @@ library SplitSwapV3Library {
                     amountsToSyncPrices[index[i]];
             }
             // assign optimal route
-            // TODO: clean up code into for loop
-            if (numSplits == 1) {
-                amountsIn[index[4]] =
-                    amountsToSyncPrices[index[4]] +
-                    ((amountIn - amountsToSyncPrices[index[4]]) *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]])) /
+            amountsIn[index[4 - numSplits]] = amountIn;
+            for (uint256 i; i < numSplits; i = _inc(i)) {
+                uint256 partAmountIn;
+                uint256 cumRes = reserves[index[4]].reserveIn;
+                cumulativeReserveOut = 0;
+                for (uint256 j; j < numSplits; j = _inc(j)) {
+                    if (_isZero(amountsToSyncPrices[index[4 - j]])) break;
+                    if (j >= i)
+                        partAmountIn =
+                            partAmountIn +
+                            (amountsToSyncPrices[index[4 - j]] * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
+                            cumRes;
+                    cumRes = cumRes + amountsToSyncPrices[index[4 - j]] + reserves[index[3 - j]].reserveIn;
+                    cumulativeReserveOut = cumulativeReserveOut + amountsToSyncPrices[index[4 - j]];
+                }
+                amountsIn[index[4 - i]] =
+                    partAmountIn +
+                    ((amountIn - cumulativeReserveOut) * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
                     cumulativeReserveIn;
-                amountsIn[index[3]] = amountIn - amountsIn[index[4]];
-                amountsOut[index[4]] = getAmountOutFee(
-                    amountsIn[index[4]],
-                    reserves[index[4]].reserveIn,
-                    reserves[index[4]].reserveOut,
-                    getFee(index[4])
-                );
-                amountsOut[index[3]] = getAmountOutFee(
-                    amountsIn[index[3]],
-                    reserves[index[3]].reserveIn,
-                    reserves[index[3]].reserveOut,
-                    getFee(index[3])
-                );
-            } else if (numSplits == 2) {
-                uint256 partAmountIn = (amountsToSyncPrices[index[3]] *
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]])) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                amountsIn[index[4]] =
-                    amountsToSyncPrices[index[4]] +
-                    partAmountIn +
-                    ((amountIn - amountsToSyncPrices[index[4]] - amountsToSyncPrices[index[3]]) *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[3]] * reserves[index[3]].reserveIn) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                amountsIn[index[3]] =
-                    partAmountIn +
-                    ((amountIn - amountsToSyncPrices[index[4]] - amountsToSyncPrices[index[3]]) *
-                        (reserves[index[3]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                amountsIn[index[2]] = amountIn - amountsIn[index[3]] - amountsIn[index[4]];
-                amountsOut[index[4]] = getAmountOutFee(
-                    amountsIn[index[4]],
-                    reserves[index[4]].reserveIn,
-                    reserves[index[4]].reserveOut,
-                    getFee(index[4])
-                );
-                amountsOut[index[3]] = getAmountOutFee(
-                    amountsIn[index[3]],
-                    reserves[index[3]].reserveIn,
-                    reserves[index[3]].reserveOut,
-                    getFee(index[3])
-                );
-                amountsOut[index[2]] = getAmountOutFee(
-                    amountsIn[index[2]],
-                    reserves[index[2]].reserveIn,
-                    reserves[index[2]].reserveOut,
-                    getFee(index[2])
-                );
-            } else if (numSplits == 3) {
-                uint256 partAmountIn = (amountsToSyncPrices[index[3]] *
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]])) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[2]] *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                amountsIn[index[4]] =
-                    amountsToSyncPrices[index[4]] +
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]]) *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[3]] * reserves[index[3]].reserveIn) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[2]] * (reserves[index[3]].reserveIn + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                amountsIn[index[3]] =
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]]) * (reserves[index[3]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[2]] * reserves[index[2]].reserveIn) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                amountsIn[index[2]] =
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]]) * (reserves[index[2]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                amountsIn[index[1]] = amountIn - amountsIn[index[2]] - amountsIn[index[3]] - amountsIn[index[4]];
-                amountsOut[index[4]] = getAmountOutFee(
-                    amountsIn[index[4]],
-                    reserves[index[4]].reserveIn,
-                    reserves[index[4]].reserveOut,
-                    getFee(index[4])
-                );
-                amountsOut[index[3]] = getAmountOutFee(
-                    amountsIn[index[3]],
-                    reserves[index[3]].reserveIn,
-                    reserves[index[3]].reserveOut,
-                    getFee(index[3])
-                );
-                amountsOut[index[2]] = getAmountOutFee(
-                    amountsIn[index[2]],
-                    reserves[index[2]].reserveIn,
-                    reserves[index[2]].reserveOut,
-                    getFee(index[2])
-                );
-                amountsOut[index[1]] = getAmountOutFee(
-                    amountsIn[index[1]],
-                    reserves[index[1]].reserveIn,
-                    reserves[index[1]].reserveOut,
-                    getFee(index[1])
-                );
-            } else if (numSplits == 4) {
-                uint256 partAmountIn = (amountsToSyncPrices[index[3]] *
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]])) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[2]] *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[1]] *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn +
-                        amountsToSyncPrices[index[2]] +
-                        reserves[index[1]].reserveIn);
-                amountsIn[index[4]] =
-                    amountsToSyncPrices[index[4]] +
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]] -
-                        amountsToSyncPrices[index[1]]) *
-                        (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[3]] * reserves[index[3]].reserveIn) /
-                    (reserves[index[4]].reserveIn + amountsToSyncPrices[index[4]] + reserves[index[3]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[2]] * (reserves[index[3]].reserveIn + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[1]] * (reserves[index[3]].reserveIn + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn +
-                        amountsToSyncPrices[index[2]] +
-                        reserves[index[1]].reserveIn);
-                amountsIn[index[3]] =
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]] -
-                        amountsToSyncPrices[index[1]]) * (reserves[index[3]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[2]] * reserves[index[2]].reserveIn) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn);
-                partAmountIn =
-                    partAmountIn +
-                    (amountsToSyncPrices[index[1]] * (reserves[index[2]].reserveIn + partAmountIn)) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn +
-                        amountsToSyncPrices[index[2]] +
-                        reserves[index[1]].reserveIn);
-                amountsIn[index[2]] =
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]] -
-                        amountsToSyncPrices[index[1]]) * (reserves[index[2]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                partAmountIn =
-                    (amountsToSyncPrices[index[1]] * reserves[index[1]].reserveIn) /
-                    (reserves[index[4]].reserveIn +
-                        amountsToSyncPrices[index[4]] +
-                        reserves[index[3]].reserveIn +
-                        amountsToSyncPrices[index[3]] +
-                        reserves[index[2]].reserveIn +
-                        amountsToSyncPrices[index[2]] +
-                        reserves[index[1]].reserveIn);
-                amountsIn[index[1]] =
-                    partAmountIn +
-                    ((amountIn -
-                        amountsToSyncPrices[index[4]] -
-                        amountsToSyncPrices[index[3]] -
-                        amountsToSyncPrices[index[2]] -
-                        amountsToSyncPrices[index[1]]) * (reserves[index[1]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                amountsIn[index[0]] =
-                    amountIn -
-                    amountsIn[index[1]] -
-                    amountsIn[index[2]] -
-                    amountsIn[index[3]] -
-                    amountsIn[index[4]];
-                amountsOut[index[4]] = getAmountOutFee(
-                    amountsIn[index[4]],
-                    reserves[index[4]].reserveIn,
-                    reserves[index[4]].reserveOut,
-                    getFee(index[4])
-                );
-                amountsOut[index[3]] = getAmountOutFee(
-                    amountsIn[index[3]],
-                    reserves[index[3]].reserveIn,
-                    reserves[index[3]].reserveOut,
-                    getFee(index[3])
-                );
-                amountsOut[index[2]] = getAmountOutFee(
-                    amountsIn[index[2]],
-                    reserves[index[2]].reserveIn,
-                    reserves[index[2]].reserveOut,
-                    getFee(index[2])
-                );
-                amountsOut[index[1]] = getAmountOutFee(
-                    amountsIn[index[1]],
-                    reserves[index[1]].reserveIn,
-                    reserves[index[1]].reserveOut,
-                    getFee(index[1])
-                );
-                amountsOut[index[0]] = getAmountOutFee(
-                    amountsIn[index[0]],
-                    reserves[index[0]].reserveIn,
-                    reserves[index[0]].reserveOut,
-                    getFee(index[0])
+                amountsIn[index[4 - numSplits]] = amountsIn[index[4 - numSplits]] - amountsIn[index[4 - i]];
+            }
+
+            for (uint256 i = 5; _isNonZero(i); i = _dec(i)) {
+                if (_isZero(amountsIn[index[_dec(i)]])) break;
+                amountsOut[index[_dec(i)]] = getAmountOutFee(
+                    amountsIn[index[_dec(i)]],
+                    reserves[index[_dec(i)]].reserveIn,
+                    reserves[index[_dec(i)]].reserveOut,
+                    getFee(index[_dec(i)])
                 );
             }
         }
@@ -868,6 +621,7 @@ library SplitSwapV3Library {
         uint256 cumulativeReserveOut;
         uint256 prevAmountIn;
         uint256 numSplits;
+        uint256 offset;
         // calculate amount to sync prices cascading through each pool with best prices first, while cumulative amount < amountIn
         // iteratevly assign splits, testing against extra gas of each split
         for (uint256 i = 0; i < 4; i = _inc(i)) {
@@ -878,6 +632,7 @@ library SplitSwapV3Library {
                 cumulativeReserveIn = reserves[index[i]].reserveIn;
                 amountsIn[index[i]] = prevAmountIn;
                 amountsOut[index[i]] = amountOut;
+                offset = i;
             }
             amountsToSyncPrices[index[i]] = _amountToSyncPricesFee(
                 cumulativeReserveIn,
@@ -900,293 +655,52 @@ library SplitSwapV3Library {
                 amountsToSyncPrices[index[i]];
         }
         // assign optimal route
-        // TODO: clean up code into for loop
-        if (numSplits == 1) {
-            amountsIn[index[0]] =
-                amountsToSyncPrices[index[0]] +
-                ((prevAmountIn - amountsToSyncPrices[index[0]]) *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]])) /
+        for (uint256 i; i < numSplits; i = _inc(i)) {
+            uint256 partAmountIn;
+            uint256 cumRes = reserves[index[offset]].reserveIn;
+            cumulativeReserveOut = 0;
+            for (uint256 j; j < numSplits; j = _inc(j)) {
+                if (_isZero(amountsToSyncPrices[index[_inc(j + offset)]])) break;
+                if (j >= i)
+                    partAmountIn =
+                        partAmountIn +
+                        (amountsToSyncPrices[index[j + offset]] *
+                            (reserves[index[i + offset]].reserveIn + partAmountIn)) /
+                        cumRes;
+                cumRes = cumRes + amountsToSyncPrices[index[j + offset]] + reserves[index[_inc(j + offset)]].reserveIn;
+                cumulativeReserveOut = cumulativeReserveOut + amountsToSyncPrices[index[j + offset]];
+            }
+            amountsIn[index[i + offset]] =
+                partAmountIn +
+                ((prevAmountIn - cumulativeReserveOut) * (reserves[index[i + offset]].reserveIn + partAmountIn)) /
                 cumulativeReserveIn;
-
-            amountsOut[index[0]] = getAmountOutFee(
-                amountsIn[index[0]],
-                reserves[index[0]].reserveIn,
-                reserves[index[0]].reserveOut,
-                getFee(index[0])
-            );
-            amountsOut[index[1]] = amountOut - amountsOut[index[0]];
-            amountsIn[index[1]] = getAmountInFee(
-                amountsOut[index[1]],
-                reserves[index[1]].reserveIn,
-                reserves[index[1]].reserveOut,
-                getFee(index[1])
-            );
-        } else if (numSplits == 2) {
-            uint256 partAmountIn = (amountsToSyncPrices[index[1]] *
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]])) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            amountsIn[index[0]] =
-                amountsToSyncPrices[index[0]] +
-                partAmountIn +
-                ((prevAmountIn - amountsToSyncPrices[index[0]] - amountsToSyncPrices[index[1]]) *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[1]] * reserves[index[1]].reserveIn) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            amountsIn[index[1]] =
-                partAmountIn +
-                ((prevAmountIn - amountsToSyncPrices[index[0]] - amountsToSyncPrices[index[1]]) *
-                    (reserves[index[1]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-
-            amountsOut[index[0]] = getAmountOutFee(
-                amountsIn[index[0]],
-                reserves[index[0]].reserveIn,
-                reserves[index[0]].reserveOut,
-                getFee(index[0])
-            );
-            amountsOut[index[1]] = getAmountOutFee(
-                amountsIn[index[1]],
-                reserves[index[1]].reserveIn,
-                reserves[index[1]].reserveOut,
-                getFee(index[1])
-            );
-            amountsOut[index[2]] = amountOut - amountsOut[index[1]] - amountsOut[index[0]];
-            amountsIn[index[2]] = getAmountInFee(
-                amountsOut[index[2]],
-                reserves[index[2]].reserveIn,
-                reserves[index[2]].reserveOut,
-                getFee(index[2])
-            );
-        } else if (numSplits == 3) {
-            uint256 partAmountIn = (amountsToSyncPrices[index[1]] *
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]])) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[2]] *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            amountsIn[index[0]] =
-                amountsToSyncPrices[index[0]] +
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]]) *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[1]] * reserves[index[1]].reserveIn) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[2]] * (reserves[index[1]].reserveIn + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            amountsIn[index[1]] =
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]]) * (reserves[index[1]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[2]] * reserves[index[2]].reserveIn) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            amountsIn[index[2]] =
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]]) * (reserves[index[2]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-
-            amountsOut[index[0]] = getAmountOutFee(
-                amountsIn[index[0]],
-                reserves[index[0]].reserveIn,
-                reserves[index[0]].reserveOut,
-                getFee(index[0])
-            );
-            amountsOut[index[1]] = getAmountOutFee(
-                amountsIn[index[1]],
-                reserves[index[1]].reserveIn,
-                reserves[index[1]].reserveOut,
-                getFee(index[1])
-            );
-            amountsOut[index[2]] = getAmountOutFee(
-                amountsIn[index[2]],
-                reserves[index[2]].reserveIn,
-                reserves[index[2]].reserveOut,
-                getFee(index[2])
-            );
-            amountsOut[index[3]] = amountOut - amountsOut[index[2]] - amountsOut[index[1]] - amountsOut[index[0]];
-            if (_isNonZero(amountsOut[index[3]])){
-                amountsIn[index[3]] = getAmountInFee(
-                    amountsOut[index[3]],
-                    reserves[index[3]].reserveIn,
-                    reserves[index[3]].reserveOut,
-                    getFee(index[3])
-                );
-            }            
-        } else if (numSplits == 4) {
-            uint256 partAmountIn = (amountsToSyncPrices[index[1]] *
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]])) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[2]] *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[1]] *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn +
-                    amountsToSyncPrices[index[2]] +
-                    reserves[index[3]].reserveIn);
-            amountsIn[index[0]] =
-                amountsToSyncPrices[index[0]] +
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]] -
-                    amountsToSyncPrices[index[3]]) *
-                    (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[1]] * reserves[index[1]].reserveIn) /
-                (reserves[index[0]].reserveIn + amountsToSyncPrices[index[0]] + reserves[index[1]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[2]] * (reserves[index[1]].reserveIn + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[1]] * (reserves[index[1]].reserveIn + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn +
-                    amountsToSyncPrices[index[2]] +
-                    reserves[index[3]].reserveIn);
-            amountsIn[index[1]] =
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]] -
-                    amountsToSyncPrices[index[3]]) * (reserves[index[1]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[2]] * reserves[index[2]].reserveIn) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn);
-            partAmountIn =
-                partAmountIn +
-                (amountsToSyncPrices[index[1]] * (reserves[index[2]].reserveIn + partAmountIn)) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn +
-                    amountsToSyncPrices[index[2]] +
-                    reserves[index[3]].reserveIn);
-            amountsIn[index[2]] =
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]] -
-                    amountsToSyncPrices[index[3]]) * (reserves[index[2]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-            partAmountIn =
-                (amountsToSyncPrices[index[1]] * reserves[index[1]].reserveIn) /
-                (reserves[index[0]].reserveIn +
-                    amountsToSyncPrices[index[0]] +
-                    reserves[index[1]].reserveIn +
-                    amountsToSyncPrices[index[1]] +
-                    reserves[index[2]].reserveIn +
-                    amountsToSyncPrices[index[2]] +
-                    reserves[index[3]].reserveIn);
-            amountsIn[index[3]] =
-                partAmountIn +
-                ((prevAmountIn -
-                    amountsToSyncPrices[index[0]] -
-                    amountsToSyncPrices[index[1]] -
-                    amountsToSyncPrices[index[2]] -
-                    amountsToSyncPrices[index[3]]) * (reserves[index[3]].reserveIn + partAmountIn)) /
-                cumulativeReserveIn;
-
-            amountsOut[index[0]] = getAmountOutFee(
-                amountsIn[index[0]],
-                reserves[index[0]].reserveIn,
-                reserves[index[0]].reserveOut,
-                getFee(index[0])
-            );
-            amountsOut[index[1]] = getAmountOutFee(
-                amountsIn[index[1]],
-                reserves[index[1]].reserveIn,
-                reserves[index[1]].reserveOut,
-                getFee(index[1])
-            );
-            amountsOut[index[2]] = getAmountOutFee(
-                amountsIn[index[2]],
-                reserves[index[2]].reserveIn,
-                reserves[index[2]].reserveOut,
-                getFee(index[2])
-            );
-            amountsOut[index[3]] = getAmountOutFee(
-                amountsIn[index[3]],
-                reserves[index[3]].reserveIn,
-                reserves[index[3]].reserveOut,
-                getFee(index[3])
-            );
-            amountsOut[index[4]] =
-                amountOut -
-                amountsOut[index[3]] -
-                amountsOut[index[2]] -
-                amountsOut[index[1]] -
-                amountsOut[index[0]];
-            amountsIn[index[4]] = getAmountInFee(
-                amountsOut[index[4]],
-                reserves[index[4]].reserveIn,
-                reserves[index[4]].reserveOut,
-                getFee(index[4])
-            );
         }
+        amountsOut[index[numSplits + offset]] = amountOut;
+        for (uint256 i; i < numSplits; i = _inc(i)) {
+            if (_isZero(amountsIn[index[i + offset]])) break;
+            amountsOut[index[i + offset]] = getAmountOutFee(
+                amountsIn[index[i + offset]],
+                reserves[index[i + offset]].reserveIn,
+                reserves[index[i + offset]].reserveOut,
+                getFee(index[i + offset])
+            );
+            if (amountsOut[index[i + offset]] < amountsOut[index[numSplits + offset]])
+                amountsOut[index[numSplits + offset]] =
+                    amountsOut[index[numSplits + offset]] -
+                    amountsOut[index[i + offset]];
+            else amountsOut[index[numSplits + offset]] = 0;
+        }
+        if (_isNonZero(amountsOut[index[numSplits + offset]]))
+            amountsIn[index[numSplits + offset]] = getAmountInFee(
+                amountsOut[index[numSplits + offset]],
+                reserves[index[numSplits + offset]].reserveIn,
+                reserves[index[numSplits + offset]].reserveOut,
+                getFee(index[numSplits + offset])
+            );
     }
 
     /// @dev returns sorted index of amount array (in ascending order)
+    /// TODO: make a more efficient sort
     function _sortArray(uint256[5] memory arr_) internal pure returns (uint256[5] memory index) {
         uint256[5] memory arr;
         index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4)];
