@@ -15,6 +15,8 @@ Pools
 - Uniswap V3 0.05%
 - Uniswap V3 1.00%
 
+[Uniswap V3 virtual reserves calculation](docs/virtual-reserves.md)
+
 ## Ethereum, Polygon, Optimism, Arbitrum
 Using the path given, `SplitSwapV3Router` optimally splits swaps across pools from Uniswap V3, Uniswap V2 and Sushiswap.
 
