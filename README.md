@@ -71,10 +71,19 @@ Benchmark transactions from 1-Inch v4:
 
 `SplitSwapRouter` uses ~20% of the gas of 1-Inch with a decreased output within ~ 1%
 
-Run the test
+### Run the tests
+
+Benchmarks
 ```sh
 forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapV3RouterVS1inchTest --etherscan-api-key $ETHERSCAN_API
 ```
+
+Dynamic Api
+```sh
+source ./script/1inch-api-test.sh
+```
+
+[Dynamic api result](docs/1inch-test.md)
 
 ## Test deploy
 ```sh
