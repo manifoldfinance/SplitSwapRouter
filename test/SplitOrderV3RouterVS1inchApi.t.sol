@@ -94,9 +94,9 @@ contract SplitSwapV3RouterVS1inchTestApi is DSTest {
         uint256 blockNum = block.number;
         uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
         vm.roll(blockNum); // roll back state
-        uint256 balBefore = ERC20(toTokenAddress).balanceOf(address(this));
-        ONEINCH.call{value: amountIn}(DATA);
-        uint256 actual1InchOut = ERC20(toTokenAddress).balanceOf(address(this)) - balBefore;
+        (bool success, bytes memory data) = ONEINCH.call{value: amountIn}(DATA);
+        if (!success) revert();
+        (uint256 actual1InchOut,,) = abi.decode(data, (uint256, uint256, uint256));
         assertGe(amounts[amounts.length - 1], (actual1InchOut * margin) / uint256(10000));
     }
 

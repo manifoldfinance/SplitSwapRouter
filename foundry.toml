@@ -10,11 +10,11 @@ via_ir = true
 # Configuration to ensure strict fuzzing testing
 fuzz_runs = 1000
 
-[default.optimizer_details]
+[profile.default.optimizer_details]
 constantOptimizer = true
 yul = true
 
-[default.optimizer_details.yulDetails]
+[profile.default.optimizer_details.yulDetails]
 stackAllocation = true
 
 [rpc_endpoints]

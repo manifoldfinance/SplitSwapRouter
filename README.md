@@ -38,27 +38,8 @@ forge build
 ```sh
 forge test -f "$ETH_RPC_URL" -vvv
 ```
-```sh
-Running 17 tests for test/SplitSwapRouterFuzz.t.sol:SplitSwapRouterFuzzTest
-[PASS] testGetAmountIn(uint112,uint112,uint112) (runs: 1000, μ: 16660, ~: 16660)
-[PASS] testGetAmountOut(uint112,uint112,uint112) (runs: 1000, μ: 16116, ~: 16116)
-[PASS] testGetAmountsIn(uint112) (runs: 1000, μ: 36133, ~: 36133)
-[PASS] testGetAmountsOut(uint112) (runs: 1000, μ: 33033, ~: 33033)
-[PASS] testLiquidityEth(uint256) (runs: 1000, μ: 614922, ~: 611395)
-[PASS] testLiquidityEthSupportingFeeOnTransfer(uint256) (runs: 1000, μ: 617579, ~: 612604)
-[PASS] testLiquidityTokens(uint256) (runs: 1000, μ: 636588, ~: 642472)
-[PASS] testQuote(uint112,uint112,uint112) (runs: 1000, μ: 15966, ~: 15966)
-[PASS] testSwapETHForExactTokens(uint256) (runs: 1000, μ: 244810, ~: 249713)
-[PASS] testSwapExactETHForTokens(uint256) (runs: 1000, μ: 206066, ~: 192096)
-[PASS] testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 194981, ~: 194981)
-[PASS] testSwapExactTokensForETH(uint256) (runs: 1000, μ: 379847, ~: 373627)
-[PASS] testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 362968, ~: 370557)
-[PASS] testSwapExactTokensForTokens(uint256) (runs: 1000, μ: 316265, ~: 323441)
-[PASS] testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 357806, ~: 367636)
-[PASS] testSwapTokensForExactETH(uint256) (runs: 1000, μ: 387861, ~: 382940)
-[PASS] testSwapTokensForExactTokens(uint256) (runs: 1000, μ: 419880, ~: 441076)
-Test result: ok. 17 passed; 0 failed; finished in 50.81s
-```
+
+[Fuzz test result](docs/fuzz-test.md)
 
 ## Benchmarking against 1-Inch v4
 
@@ -69,7 +50,7 @@ Benchmark transactions from 1-Inch v4:
 - https://etherscan.io/tx/0xf2c30b239cd6f77427b2998b930eff3c0eb4bb50a92f7993d379484161c89480
 - https://etherscan.io/tx/0xd851a00e54dace8f77cd7e6f25c28818177ac3e1f5a3b18795a9c747723cb7a9
 
-`SplitSwapRouter` uses ~20% of the gas of 1-Inch with a decreased output within ~ 1%
+`SplitSwapRouter` uses ~20% of the gas of 1-Inch with an output within ~ 1%
 
 ### Run the tests
 
@@ -78,12 +59,14 @@ Benchmarks
 forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapV3RouterVS1inchTest --etherscan-api-key $ETHERSCAN_API
 ```
 
+[Benchmark test result](docs/benchmark-test.md)
+
 Dynamic Api
 ```sh
 source ./script/1inch-api-test.sh
 ```
 
-[Dynamic api result](docs/1inch-test.md)
+[Dynamic api test result](docs/1inch-test.md)
 
 ## Test deploy
 ```sh
@@ -100,7 +83,6 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 ### Todo
 
 - [ ] Gas checks for adding splits (more efficient method needed)
-- [ ] Add income potential (retain % of coins gained from split)
 - [ ] MockERC20 and factories for faster fuzz testing
 - [ ] Weth10 integration
 - [ ] Gas optimisation
@@ -117,4 +99,5 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 - [x] Testing
 - [x] Cross-chain compatible
 - [x] Benchmark performance vs 1inch v4
+- [x] 1inch v4 dynamic api test
 - [x] Documentation of derived math and code 
