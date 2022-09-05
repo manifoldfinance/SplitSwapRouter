@@ -52,12 +52,8 @@ library SplitSwapV3Library {
         Pool[5] pools; // 5 pools (sushi, univ2, univ3 (3 pools))
     }
 
-    /// @dev Ethereum mainnet, Optimism, Arbitrum, Polygon address
-    address internal constant UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
-    /// @dev /// @dev Minimum pool liquidity to interact with
+    /// @dev Minimum pool liquidity to interact with
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
-    /// @dev Estimated gas used for average single swap
-    uint256 internal constant EST_SWAP_GAS_USED = 140000;
 
     /// @dev calculate uinswap v3 pool address
     /// @param token0 address of token0
@@ -69,14 +65,11 @@ library SplitSwapV3Library {
         uint24 fee
     ) internal pure returns (address pool) {
         // TODO: re-write in assembly
+        // NB moving constants to here seems more gas efficient
         bytes32 POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+        address UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
         bytes32 pubKey = keccak256(
-            abi.encodePacked(
-                hex"ff",
-                address(UNIV3_FACTORY),
-                keccak256(abi.encode(token0, token1, fee)),
-                POOL_INIT_CODE_HASH
-            )
+            abi.encodePacked(hex"ff", UNIV3_FACTORY, keccak256(abi.encode(token0, token1, fee)), POOL_INIT_CODE_HASH)
         );
 
         //bytes32 to address:
@@ -208,17 +201,6 @@ library SplitSwapV3Library {
         amountB = (amountA * reserveB) / reserveA;
     }
 
-    function quoteFee(
-        uint256 amountA,
-        uint256 reserveA,
-        uint256 reserveB,
-        uint256 fee
-    ) internal pure returns (uint256 amountB) {
-        if (_isZero(amountA)) revert ZeroAmount();
-        if (_isZero(reserveA) || _isZero(reserveB)) revert InsufficientLiquidity();
-        amountB = ((1000000 - fee) * amountA * reserveB) / (1000000 * reserveA);
-    }
-
     /// @notice Given an input asset amount, returns the maximum output amount of the other asset (accounting for fees) given reserves
     /// @dev Require replaced with revert custom error
     /// @param amountIn Amount of token in
@@ -313,28 +295,6 @@ library SplitSwapV3Library {
         }
     }
 
-    /// @notice Given an input asset amount and an array of token addresses, calculates all subsequent maximum output token amounts by calling getReserves for each pair of token addresses in the path in turn, and using these to call getAmountOut
-    /// @dev Require replaced with revert custom error
-    /// @param factory Factory address of dex
-    /// @param amountIn Amount of token in
-    /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
-    /// @return amounts Array of input token amount and all subsequent output token amounts
-    function getAmountsOut(
-        address factory,
-        bytes32 factoryHash,
-        uint256 amountIn,
-        address[] memory path
-    ) internal view returns (uint256[] memory amounts) {
-        uint256 length = path.length;
-        if (length < 2) revert InvalidPath();
-        amounts = new uint256[](length);
-        amounts[0] = amountIn;
-        for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)], factoryHash);
-            amounts[_inc(i)] = getAmountOut(amounts[i], reserveIn, reserveOut);
-        }
-    }
-
     /// @dev checks codesize for contract existence
     /// @param _addr address of contract to check
     function isContract(address _addr) internal view returns (bool) {
@@ -342,7 +302,7 @@ library SplitSwapV3Library {
         assembly {
             size := extcodesize(_addr)
         }
-        return (size > 0);
+        return (_isNonZero(size));
     }
 
     /// @dev populates and returns Reserve struct array for each pool address
@@ -427,7 +387,6 @@ library SplitSwapV3Library {
                 // find optimal route
                 (amountsIn, amountsOut) = _optimalRouteOut(amountIn, reserves);
             }
-
             for (uint256 j; j < 5; j = _inc(j)) {
                 swaps[i].pools[j].amountIn = amountsIn[j];
                 swaps[i].pools[j].amountOut = amountsOut[j];
@@ -477,59 +436,58 @@ library SplitSwapV3Library {
         if (_isNonZero(amountsOutSingleSwap[index[4]])) {
             amountsIn[index[4]] = amountIn; // set best price as default, before splitting
             amountsOut[index[4]] = amountsOutSingleSwap[index[4]];
-            uint256[5] memory amountsToSyncPrices;
             uint256 cumulativeAmount;
             uint256 cumulativeReserveIn = reserves[index[4]].reserveIn;
             uint256 cumulativeReserveOut = reserves[index[4]].reserveOut;
             uint256 numSplits;
-            // uint256 prevAmountOut = amountsOutSingleSwap[index[4]];
             // calculate amount to sync prices cascading through each pool with best prices first, while cumulative amount < amountIn
-            // iteratevly assign splits, testing against extra gas of each split
             for (uint256 i = 4; _isNonZero(i); i = _dec(i)) {
                 if (_isZero(amountsOutSingleSwap[index[_dec(i)]])) break;
-                amountsToSyncPrices[index[i]] = _amountToSyncPricesFee(
+                amountsOutSingleSwap[index[i]] = _amountToSyncPricesFee(
                     cumulativeReserveIn,
                     cumulativeReserveOut,
                     reserves[index[_dec(i)]].reserveIn,
                     reserves[index[_dec(i)]].reserveOut,
                     getFee(index[i])
-                );
-                if (_isZero(amountsToSyncPrices[index[i]])) break; // skip edge case
-                cumulativeAmount = cumulativeAmount + amountsToSyncPrices[index[i]];
+                ); // re-assign var to amountsToSyncPrices
+                if (_isZero(amountsOutSingleSwap[index[i]])) break; // skip edge case
+                cumulativeAmount = cumulativeAmount + amountsOutSingleSwap[index[i]];
                 if (amountIn <= cumulativeAmount) break; // keep prior setting and break loop
                 numSplits = _inc(numSplits);
                 cumulativeReserveOut =
                     cumulativeReserveOut +
                     reserves[index[_dec(i)]].reserveOut -
-                    getAmountOut(amountsToSyncPrices[index[i]], cumulativeReserveIn, cumulativeReserveOut);
+                    getAmountOut(amountsOutSingleSwap[index[i]], cumulativeReserveIn, cumulativeReserveOut);
                 cumulativeReserveIn =
                     cumulativeReserveIn +
                     reserves[index[_dec(i)]].reserveIn +
-                    amountsToSyncPrices[index[i]];
+                    amountsOutSingleSwap[index[i]];
             }
             // assign optimal route
-            amountsIn[index[4 - numSplits]] = amountIn;
+            amountsIn[index[4 - numSplits]] = amountIn; // default
             for (uint256 i; i < numSplits; i = _inc(i)) {
                 uint256 partAmountIn;
-                uint256 cumRes = reserves[index[4]].reserveIn;
-                cumulativeReserveOut = 0;
+                cumulativeReserveOut = reserves[index[4]].reserveIn; // re-assign var to represent cumulative reserve in
+                cumulativeAmount = 0;
                 for (uint256 j; j < numSplits; j = _inc(j)) {
-                    if (_isZero(amountsToSyncPrices[index[4 - j]])) break;
+                    if (_isZero(amountsOutSingleSwap[index[4 - j]])) break;
                     if (j >= i)
                         partAmountIn =
                             partAmountIn +
-                            (amountsToSyncPrices[index[4 - j]] * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
-                            cumRes;
-                    cumRes = cumRes + amountsToSyncPrices[index[4 - j]] + reserves[index[3 - j]].reserveIn;
-                    cumulativeReserveOut = cumulativeReserveOut + amountsToSyncPrices[index[4 - j]];
+                            (amountsOutSingleSwap[index[4 - j]] * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
+                            cumulativeReserveOut; // amounts to sync are routed consecutively by reserve ratios
+                    cumulativeReserveOut =
+                        cumulativeReserveOut +
+                        amountsOutSingleSwap[index[4 - j]] +
+                        reserves[index[3 - j]].reserveIn; // cumulative reserve in
+                    cumulativeAmount = cumulativeAmount + amountsOutSingleSwap[index[4 - j]]; // accumulate amounts to sync to each price level
                 }
                 amountsIn[index[4 - i]] =
                     partAmountIn +
-                    ((amountIn - cumulativeReserveOut) * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
-                    cumulativeReserveIn;
-                amountsIn[index[4 - numSplits]] = amountsIn[index[4 - numSplits]] - amountsIn[index[4 - i]];
+                    ((amountIn - cumulativeAmount) * (reserves[index[4 - i]].reserveIn + partAmountIn)) /
+                    cumulativeReserveIn; // each new split is optimally routed by reserve ratio of new pool to cumulative reserves of prior pools
+                amountsIn[index[4 - numSplits]] = amountsIn[index[4 - numSplits]] - amountsIn[index[4 - i]]; // assign last amountIn as remainder to account for rounding errors
             }
-
             for (uint256 i = 5; _isNonZero(i); i = _dec(i)) {
                 if (_isZero(amountsIn[index[_dec(i)]])) break;
                 amountsOut[index[_dec(i)]] = getAmountOutFee(
@@ -539,28 +497,6 @@ library SplitSwapV3Library {
                     getFee(index[_dec(i)])
                 );
             }
-        }
-    }
-
-    /// @notice Given an output asset amount and an array of token addresses, calculates all preceding minimum input token amounts by calling getReserves for each pair of token addresses in the path in turn, and using these to call getAmountIn
-    /// @dev Require replaced with revert custom error
-    /// @param factory Factory address of dex
-    /// @param amountOut Amount of token out wanted
-    /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
-    /// @return amounts Array of input token amount and all subsequent output token amounts
-    function getAmountsIn(
-        address factory,
-        bytes32 factoryHash,
-        uint256 amountOut,
-        address[] memory path
-    ) internal view returns (uint256[] memory amounts) {
-        uint256 length = path.length;
-        if (length < 2) revert InvalidPath();
-        amounts = new uint256[](length);
-        amounts[_dec(length)] = amountOut;
-        for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i], factoryHash);
-            amounts[_dec(i)] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
 
@@ -614,7 +550,6 @@ library SplitSwapV3Library {
         uint256[5] memory amountsInSingleSwap,
         Reserve[5] memory reserves
     ) internal pure returns (uint256[5] memory amountsIn, uint256[5] memory amountsOut) {
-        uint256[5] memory amountsToSyncPrices;
         uint256[5] memory index = _sortArray(amountsInSingleSwap); // sorts in ascending order (i.e. best price is first)
         uint256 cumulativeAmount;
         uint256 cumulativeReserveIn;
@@ -623,7 +558,6 @@ library SplitSwapV3Library {
         uint256 numSplits;
         uint256 offset;
         // calculate amount to sync prices cascading through each pool with best prices first, while cumulative amount < amountIn
-        // iteratevly assign splits, testing against extra gas of each split
         for (uint256 i = 0; i < 4; i = _inc(i)) {
             if (_isZero(amountsInSingleSwap[index[i]])) continue;
             if (_isZero(prevAmountIn)) {
@@ -633,46 +567,53 @@ library SplitSwapV3Library {
                 amountsIn[index[i]] = prevAmountIn;
                 amountsOut[index[i]] = amountOut;
                 offset = i;
+                break;
             }
-            amountsToSyncPrices[index[i]] = _amountToSyncPricesFee(
+        }
+        for (uint256 i = offset; i < 4; i = _inc(i)) {
+            amountsInSingleSwap[index[i]] = _amountToSyncPricesFee(
                 cumulativeReserveIn,
                 cumulativeReserveOut,
                 reserves[index[_inc(i)]].reserveIn,
                 reserves[index[_inc(i)]].reserveOut,
                 getFee(index[i])
             );
-            if (_isZero(amountsToSyncPrices[index[i]])) break; // skip edge case
-            cumulativeAmount = cumulativeAmount + amountsToSyncPrices[index[i]];
+            if (_isZero(amountsInSingleSwap[index[i]])) break; // skip edge case
+            cumulativeAmount = cumulativeAmount + amountsInSingleSwap[index[i]];
+
             if (prevAmountIn <= cumulativeAmount) break; // keep prior setting and break loop
             numSplits = _inc(numSplits);
             cumulativeReserveOut =
                 cumulativeReserveOut +
                 reserves[index[_inc(i)]].reserveOut -
-                getAmountOut(amountsToSyncPrices[index[i]], cumulativeReserveIn, cumulativeReserveOut);
+                getAmountOut(amountsInSingleSwap[index[i]], cumulativeReserveIn, cumulativeReserveOut);
             cumulativeReserveIn =
                 cumulativeReserveIn +
                 reserves[index[_inc(i)]].reserveIn +
-                amountsToSyncPrices[index[i]];
+                amountsInSingleSwap[index[i]];
         }
         // assign optimal route
         for (uint256 i; i < numSplits; i = _inc(i)) {
             uint256 partAmountIn;
-            uint256 cumRes = reserves[index[offset]].reserveIn;
-            cumulativeReserveOut = 0;
+            cumulativeReserveOut = reserves[index[offset]].reserveIn; // re-assign var
+            cumulativeAmount = 0;
             for (uint256 j; j < numSplits; j = _inc(j)) {
-                if (_isZero(amountsToSyncPrices[index[_inc(j + offset)]])) break;
+                if (_isZero(amountsInSingleSwap[index[_inc(j + offset)]])) break;
                 if (j >= i)
                     partAmountIn =
                         partAmountIn +
-                        (amountsToSyncPrices[index[j + offset]] *
+                        (amountsInSingleSwap[index[j + offset]] *
                             (reserves[index[i + offset]].reserveIn + partAmountIn)) /
-                        cumRes;
-                cumRes = cumRes + amountsToSyncPrices[index[j + offset]] + reserves[index[_inc(j + offset)]].reserveIn;
-                cumulativeReserveOut = cumulativeReserveOut + amountsToSyncPrices[index[j + offset]];
+                        cumulativeReserveOut;
+                cumulativeReserveOut =
+                    cumulativeReserveOut +
+                    amountsInSingleSwap[index[j + offset]] +
+                    reserves[index[_inc(j + offset)]].reserveIn;
+                cumulativeAmount = cumulativeAmount + amountsInSingleSwap[index[j + offset]];
             }
             amountsIn[index[i + offset]] =
                 partAmountIn +
-                ((prevAmountIn - cumulativeReserveOut) * (reserves[index[i + offset]].reserveIn + partAmountIn)) /
+                ((prevAmountIn - cumulativeAmount) * (reserves[index[i + offset]].reserveIn + partAmountIn)) /
                 cumulativeReserveIn;
         }
         amountsOut[index[numSplits + offset]] = amountOut;
@@ -699,25 +640,24 @@ library SplitSwapV3Library {
             );
     }
 
-    /// @dev returns sorted index of amount array (in ascending order)
-    /// TODO: make a more efficient sort
-    function _sortArray(uint256[5] memory arr_) internal pure returns (uint256[5] memory index) {
-        uint256[5] memory arr;
-        index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4)];
+    /// @dev insert sorted index of amount array (in ascending order)
+    function _sortArray(uint256[5] memory _data) internal pure returns (uint256[5] memory index) {
+        uint256[5] memory data;
         for (uint256 i; i < 5; i++) {
-            arr[i] = arr_[i];
+            data[i] = _data[i];
         }
-        for (uint256 i; i < 5; i++) {
-            for (uint256 j = i + 1; j < 5; j++) {
-                if (arr[i] > arr[j]) {
-                    uint256 temp = arr[j];
-                    uint256 tmp2 = index[j];
-                    arr[j] = arr[i];
-                    arr[i] = temp;
-                    index[j] = index[i];
-                    index[i] = tmp2;
-                }
+        index = [uint256(0), uint256(1), uint256(2), uint256(3), uint256(4)];
+        for (uint256 i = 1; i < 5; i++) {
+            uint256 key = data[i];
+            uint256 keyIndex = index[i];
+            uint256 j = i;
+            while (_isNonZero(j) && (data[_dec(j)] > key)) {
+                data[j] = data[_dec(j)];
+                index[j] = index[_dec(j)];
+                j = _dec(j);
             }
+            data[j] = key;
+            index[j] = keyIndex;
         }
     }
 

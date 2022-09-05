@@ -183,7 +183,7 @@ contract SplitSwapV3RouterFuzzTest is DSTest {
         uint256[] memory amounts = router.swapExactTokensForETH(totalUSDC / 2, amountOutMin, path, to, deadline);
         uint256[] memory amounts2 = routerOld.swapExactTokensForETH(totalUSDC / 2, amountOutMin, path, to, deadline);
 
-        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
+        assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1] - amounts2[amounts2.length - 1] / 1000);
     }
 
     function testSwapTokensForExactETH(uint256 amountIn) external {

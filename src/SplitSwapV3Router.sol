@@ -21,13 +21,11 @@ contract SplitSwapV3Router is IUniswapV3SwapCallback {
     // Custom errors save gas, encoding to 4 bytes
     error Expired();
     error InvalidPath();
-    error TransferFailed();
     error InsufficientBAmount();
     error InsufficientAAmount();
     error TokenIsFeeOnTransfer();
     error ExcessiveInputAmount();
     error ExecuteNotAuthorized();
-    error InsufficientLiquidity();
     error InsufficientOutputAmount();
 
     /// @dev UniswapV2 pool 4 byte swap selector
@@ -46,10 +44,11 @@ contract SplitSwapV3Router is IUniswapV3SwapCallback {
     bytes32 internal immutable SUSHI_FACTORY_HASH;
     /// @dev UniswapV2 factory init pair code hash
     bytes32 internal immutable BACKUP_FACTORY_HASH;
+
     /// @dev Estimated gas used for average single swap
-    uint256 internal constant EST_SWAP_GAS_USED = 140000;
+    // uint256 internal constant EST_SWAP_GAS_USED = 140000;
     /// @dev Minimum pool liquidity to interact with
-    uint256 internal constant MIN_LIQUIDITY = 1000;
+    // uint256 internal constant MIN_LIQUIDITY = 1000;
 
     /// @notice constructor arguments for cross-chain deployment
     /// @param weth wrapped native token address (e.g. Eth mainnet: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)
