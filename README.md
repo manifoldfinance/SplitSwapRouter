@@ -17,11 +17,14 @@ Pools
 
 [Uniswap V3 virtual reserves calculation](docs/virtual-reserves.md)
 
+<!-- ![SplitSwapRouterLite diagram](docs/SplitSwap.jpg) -->
+<img src="docs/SplitSwap.jpg" width="600" />
+
 ## Ethereum, Polygon, Optimism, Arbitrum
-Using the path given, `SplitSwapV3Router` optimally splits swaps across pools from Uniswap V3, Uniswap V2 and Sushiswap.
+Using the path given, `SplitSwapRouter` optimally splits swaps across pools from Uniswap V3, Uniswap V2 and Sushiswap.
 
 ## Avalanche and Fantom
-Using the path given, `SplitSwapRouter` optimally splits swaps across pools from TraderJoe / Spookyswap and Sushiswap.
+Using the path given, `SplitSwapRouterLite` optimally splits swaps across pools from TraderJoe / Spookyswap and Sushiswap.
 
 ## Setup
 Copy `.env-example` to `.env` and fill in `ETH_RPC_URL`.
@@ -34,12 +37,18 @@ source .env
 forge build
 ```
 
-## Fuzz test
+## Fuzz tests
 ```sh
-forge test -f "$ETH_RPC_URL" -vvv
+forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterFuzzTest
 ```
 
 [Fuzz test result](docs/fuzz-test.md)
+
+```sh
+forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterFuzzLiteTest
+```
+
+[Fuzz test lite result](docs/fuzz-test-lite.md)
 
 ## Benchmarking against 1-Inch v4
 
@@ -56,7 +65,7 @@ Benchmark transactions from 1-Inch v4:
 
 Benchmarks
 ```sh
-forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapV3RouterVS1inchTest --etherscan-api-key $ETHERSCAN_API
+forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapRouterVS1inchTest --etherscan-api-key $ETHERSCAN_API
 ```
 
 [Benchmark test result](docs/benchmark-test.md)
@@ -77,7 +86,7 @@ forge script script/Deploy.s.sol:DeployScript --rpc-url $ETH_RPC_URL
 Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ```sh
-./deploy.sh
+./script/deploy.sh
 ```
 
 ### Todo
@@ -89,6 +98,9 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ### In Progress
 
+- [ ] Streamline fuzz tests
+- [ ] Modify `SplitSwapRouterLite` for multi-chain
+- [ ] Deployment scripts for multi-chain
 
 ### Done ✓
 

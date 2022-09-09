@@ -2,17 +2,17 @@
 
 pragma solidity >=0.8.13 <0.9.0;
 
-import { DSTest } from "../../lib/forge-std/lib/ds-test/src/test.sol";
-import { SplitSwapV3Router } from "../src/SplitSwapV3Router.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
-import "../../lib/forge-std/src/Test.sol";
+import { DSTest } from "ds-test/test.sol";
+import { SplitSwapRouter } from "../src/SplitSwapRouter.sol";
+import { Vm } from "forge-std/Vm.sol";
+import "forge-std/Test.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";
 import { ERC20 } from "../src/ERC20.sol";
 
-/// @title SplitSwapV3RouterTest
-contract SplitSwapV3RouterVS1inchTest is DSTest {
+/// @title SplitSwapRouterTest
+contract SplitSwapRouterVS1inchTest is DSTest {
     using stdStorage for StdStorage;
     StdStorage stdstore;
     Vm internal constant vm = Vm(HEVM_ADDRESS);
@@ -22,7 +22,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     uint256 forkId4;
     uint256 forkId5;
     uint256 forkId6;
-    SplitSwapV3Router router;
+    SplitSwapRouter router;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -63,7 +63,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0x3e506fb505c538805752e419356c3a6ce8b05a29d34ca563c95e894fda75bf80
     function testSwapExactETHForTokens1() external {
         vm.selectFork(forkId1);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -86,7 +86,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0x36eeb2248b7fc1f95bfbbf3be467ac70018a7c53120e3ec4da716707e08c01f0
     function testSwapExactETHForTokens2() external {
         vm.selectFork(forkId2);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -109,7 +109,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0xa9d979dc02f5a5293431d015e0eb6c9eea963dbe4a00cccd556d703eb3b91bb1
     function testSwapExactETHForTokens3() external {
         vm.selectFork(forkId3);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -132,7 +132,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0xf2c30b239cd6f77427b2998b930eff3c0eb4bb50a92f7993d379484161c89480
     function testSwapExactETHForTokens4() external {
         vm.selectFork(forkId4);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -155,7 +155,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0xd851a00e54dace8f77cd7e6f25c28818177ac3e1f5a3b18795a9c747723cb7a9
     function testSwapExactTokensForETH5() external {
         vm.selectFork(forkId5);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -180,7 +180,7 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
     /// @dev Beat https://etherscan.io/tx/0x8ff0ece45991c4fca8df6aba595af3390d4830b3d99f613ddef4f143b4abca52
     function testSwapExactETHForTokens6() external {
         vm.selectFork(forkId6);
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -199,5 +199,4 @@ contract SplitSwapV3RouterVS1inchTest is DSTest {
 
         assertGe(amounts[amounts.length - 1], ((uint256(107326648907) * margin) / uint256(10000)));
     }
-
 }

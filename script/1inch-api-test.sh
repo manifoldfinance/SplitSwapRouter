@@ -6,11 +6,15 @@ source .env
 
 chain='1'
 
+#  test 1: 700 eth -> usdc
+
 fromTokenAddress='0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' # eth
 
 toTokenAddress='0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' # usdc
+# toTokenAddress='0xdAC17F958D2ee523a2206206994597C13D831ec7' # usdt
+# toTokenAddress='0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' # wbtc
 
-amount='500000000000000000000' # 500 eth
+amount='500000000000000000000' # 700 eth
 
 fromAddress='0xDA9dfA130Df4dE4673b89022EE50ff26f6EA73Cf' # large eth address (kraken)
 
@@ -60,5 +64,6 @@ export amount_out
 
 export data
 
-forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapV3RouterVS1inchTestApi --etherscan-api-key $ETHERSCAN_API
+forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapRouterVS1inchApiTest --etherscan-api-key $ETHERSCAN_API
+
 

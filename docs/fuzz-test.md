@@ -1,22 +1,22 @@
 # Fuzz test output
 
 ```rust
-Running 16 tests for test/SplitOrderV3RouterFuzz.t.sol:SplitSwapV3RouterFuzzTest
-[PASS] testGetAmountIn(uint112,uint112,uint112) (runs: 256, μ: 16691, ~: 16691)
-[PASS] testGetAmountOut(uint112,uint112,uint112) (runs: 256, μ: 16104, ~: 16104)
-[PASS] testGetAmountsIn(uint112) (runs: 256, μ: 104528, ~: 104170)
-[PASS] testGetAmountsOut(uint112) (runs: 256, μ: 98714, ~: 98473)
-[PASS] testLiquidityEth(uint256) (runs: 256, μ: 709763, ~: 679124)
-[PASS] testLiquidityTokens(uint256) (runs: 256, μ: 802537, ~: 729707)
-[PASS] testQuote(uint112,uint112,uint112) (runs: 256, μ: 15954, ~: 15954)
-[PASS] testSwapETHForExactTokens(uint256) (runs: 256, μ: 337283, ~: 312196)
-[PASS] testSwapExactETHForTokens(uint256) (runs: 256, μ: 303669, ~: 282888)
-[PASS] testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256) (runs: 256, μ: 273029, ~: 273097)
-[PASS] testSwapExactTokensForETH(uint256) (runs: 256, μ: 489231, ~: 482892)
-[PASS] testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256) (runs: 256, μ: 605402, ~: 652476)
-[PASS] testSwapExactTokensForTokens(uint256) (runs: 256, μ: 383459, ~: 390459)
-[PASS] testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256) (runs: 256, μ: 574735, ~: 614701)
-[PASS] testSwapTokensForExactETH(uint256) (runs: 256, μ: 537873, ~: 515584)
-[PASS] testSwapTokensForExactTokens(uint256) (runs: 256, μ: 613900, ~: 587195)
-Test result: ok. 16 passed; 0 failed; finished in 26.36s
+Running 16 tests for test/SplitSwapRouterFuzz.t.sol:SplitSwapRouterFuzzTest
+[PASS] testGetAmountIn(uint112,uint112,uint112) (runs: 1000, μ: 16688, ~: 16688)
+[PASS] testGetAmountOut(uint112,uint112,uint112) (runs: 1000, μ: 16101, ~: 16101)
+[PASS] testGetAmountsIn(uint112) (runs: 1000, μ: 102235, ~: 101554)
+[PASS] testGetAmountsOut(uint112) (runs: 1000, μ: 97074, ~: 96674)
+[PASS] testLiquidityEth(uint256) (runs: 1000, μ: 689469, ~: 677930)
+[PASS] testLiquidityTokens(uint256) (runs: 1000, μ: 800085, ~: 728057)
+[PASS] testQuote(uint112,uint112,uint112) (runs: 1000, μ: 15957, ~: 15957)
+[PASS] testSwapETHForExactTokens(uint256) (runs: 1000, μ: 329363, ~: 318829)
+[PASS] testSwapExactETHForTokens(uint256) (runs: 1000, μ: 287312, ~: 281482)
+[PASS] testSwapExactETHForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 271184, ~: 271298)
+[PASS] testSwapExactTokensForETH(uint256) (runs: 1000, μ: 487868, ~: 492442)
+[PASS] testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 628878, ~: 649603)
+[PASS] testSwapExactTokensForTokens(uint256) (runs: 1000, μ: 382724, ~: 388252)
+[PASS] testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256) (runs: 1000, μ: 589369, ~: 611763)
+[PASS] testSwapTokensForExactETH(uint256) (runs: 1000, μ: 531020, ~: 528012)
+[PASS] testSwapTokensForExactTokens(uint256) (runs: 1000, μ: 603714, ~: 582375)
+Test result: ok. 16 passed; 0 failed; finished in 156.47s
 ```

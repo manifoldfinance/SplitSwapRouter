@@ -2,21 +2,21 @@
 
 pragma solidity >=0.8.13 <0.9.0;
 
-import { DSTest } from "../../lib/forge-std/lib/ds-test/src/test.sol";
-import { SplitSwapV3Router } from "../src/SplitSwapV3Router.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
-import "../../lib/forge-std/src/Test.sol";
+import { DSTest } from "ds-test/test.sol";
+import { SplitSwapRouter } from "../src/SplitSwapRouter.sol";
+import { Vm } from "forge-std/Vm.sol";
+import "forge-std/Test.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";
 import { ERC20 } from "../src/ERC20.sol";
 
-/// @title SplitSwapV3RouterTest
-contract SplitSwapV3RouterVS1inchTestApi is DSTest {
+/// @title SplitSwapRouterTest
+contract SplitSwapRouterVS1inchApiTest is DSTest {
     using stdStorage for StdStorage;
     StdStorage stdstore;
     Vm internal constant vm = Vm(HEVM_ADDRESS);
-    SplitSwapV3Router router;
+    SplitSwapRouter router;
     address ONEINCH = 0x1111111254fb6c44bAC0beD2854e76F90643097d;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -55,28 +55,28 @@ contract SplitSwapV3RouterVS1inchTestApi is DSTest {
 
     receive() external payable {}
 
-    function testSwapExactETHForTokensApi() external {
-        router = new SplitSwapV3Router(
-            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
-            address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
-            address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
-            bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
-            bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
-        );
-        uint256 amountOutMin = 0;
-        address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = toTokenAddress;
+    // function testSwapExactETHForTokensApi() external {
+    //     router = new SplitSwapRouter(
+    //         address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
+    //         address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
+    //         address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
+    //         bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
+    //         bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
+    //     );
+    //     uint256 amountOutMin = 0;
+    //     address[] memory path = new address[](2);
+    //     path[0] = WETH;
+    //     path[1] = toTokenAddress;
 
-        address to = address(this);
-        uint256 deadline = block.timestamp;
-        uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+    //     address to = address(this);
+    //     uint256 deadline = block.timestamp;
+    //     uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
 
-        assertGe(amounts[amounts.length - 1], (amountOut1Inch * margin) / uint256(10000));
-    }
+    //     assertGe(amounts[amounts.length - 1], (amountOut1Inch * margin) / uint256(10000));
+    // }
 
     function testSwapExactETHForTokensCall() external {
-        router = new SplitSwapV3Router(
+        router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
             address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
@@ -94,10 +94,9 @@ contract SplitSwapV3RouterVS1inchTestApi is DSTest {
         uint256 blockNum = block.number;
         uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
         vm.roll(blockNum); // roll back state
-        (bool success, bytes memory data) = ONEINCH.call{value: amountIn}(DATA);
+        (bool success, bytes memory data) = ONEINCH.call{ value: amountIn }(DATA);
         if (!success) revert();
-        (uint256 actual1InchOut,,) = abi.decode(data, (uint256, uint256, uint256));
+        (uint256 actual1InchOut, , ) = abi.decode(data, (uint256, uint256, uint256));
         assertGe(amounts[amounts.length - 1], (actual1InchOut * margin) / uint256(10000));
     }
-
 }

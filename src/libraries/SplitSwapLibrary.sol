@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 /**
-Optimal split swap library to support SplitSwapV3Router
+Optimal split swap library to support SplitSwapRouter
 Based on UniswapV2Library: https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol
 */
 
@@ -11,10 +11,10 @@ import "../interfaces/IUniswapV2Pair.sol";
 import "../interfaces/IUniswapV2Factory.sol";
 import "./Babylonian.sol";
 
-/// @title SplitSwapV3Library
+/// @title SplitSwapLibrary
 /// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>
-/// @notice Optimal MEV library to support SplitSwapV3Router
-library SplitSwapV3Library {
+/// @notice Optimal MEV library to support SplitSwapRouter
+library SplitSwapLibrary {
     error Overflow();
     error ZeroAmount();
     error InvalidPath();
@@ -64,7 +64,6 @@ library SplitSwapV3Library {
         address token1,
         uint24 fee
     ) internal pure returns (address pool) {
-        // TODO: re-write in assembly
         // NB moving constants to here seems more gas efficient
         bytes32 POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
         address UNIV3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
@@ -319,8 +318,6 @@ library SplitSwapV3Library {
         for (uint256 i = 2; i < 5; i = _inc(i)) {
             if (!isContract(pools[i].pair)) continue;
             uint160 sqrtPriceX96 = uint160(IUniswapV3Pool(pools[i].pair).slot0());
-            // if (sqrtPriceX96 < 2**96) continue; // price too small
-            // sqrtPriceX96 = (sqrtPriceX96 / uint160(2**96)) + uint160(1); // account for rounding error
             uint256 liquidity = uint256(IUniswapV3Pool(pools[i].pair).liquidity());
             if (_isNonZero(liquidity) && _isNonZero(sqrtPriceX96)) {
                 unchecked {

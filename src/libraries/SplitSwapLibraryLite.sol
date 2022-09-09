@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13 <0.9.0;
 
 /**
-Optimal split order library to support SplitOrderRouter
+Optimal split order library to support SplitSwapRouterLite
 Based on UniswapV2Library: https://github.com/Uniswap/v2-periphery/blob/master/contracts/libraries/UniswapV2Library.sol
 */
 
@@ -10,10 +10,10 @@ import "../interfaces/IUniswapV2Pair.sol";
 import "../interfaces/IUniswapV2Factory.sol";
 import "./Babylonian.sol";
 
-/// @title SplitOrderLibrary
+/// @title SplitSwapLibraryLite
 /// @author Sandy Bradley <sandy@manifoldx.com>, Sam Bacha <sam@manifoldfinance.com>
-/// @notice Optimal MEV library to support SplitOrderRouter
-library SplitOrderLibrary {
+/// @notice Optimal MEV library to support SplitSwapRouterLite
+library SplitSwapLibraryLite {
     error Overflow();
     error ZeroAmount();
     error InvalidPath();
@@ -39,7 +39,7 @@ library SplitOrderLibrary {
     uint256 internal constant FF_SUSHI_FACTORY = 0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
     uint256 internal constant FF_BACKUP_FACTORY = 0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
-    uint256 internal constant EST_SWAP_GAS_USED = 100000;
+    uint256 internal constant EST_SWAP_GAS_USED = 150000;
 
     /// @notice Retreive factoryCodeHash from factory address
     /// @param factory Dex factory
