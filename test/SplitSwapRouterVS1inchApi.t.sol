@@ -2,10 +2,10 @@
 
 pragma solidity >=0.8.13 <0.9.0;
 
+import "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { DSTest } from "ds-test/test.sol";
 import { SplitSwapRouter } from "../src/SplitSwapRouter.sol";
-import { Vm } from "forge-std/Vm.sol";
-import "forge-std/Test.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";

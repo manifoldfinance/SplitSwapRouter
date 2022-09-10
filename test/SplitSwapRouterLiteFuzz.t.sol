@@ -2,9 +2,10 @@
 
 pragma solidity >=0.8.13 <0.9.0;
 
+import "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { DSTest } from "ds-test/test.sol";
 import { SplitSwapRouterLite } from "../src/SplitSwapRouterLite.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";
@@ -12,6 +13,8 @@ import { ERC20 } from "../src/ERC20.sol";
 
 /// @title SplitSwapRouterLiteTest
 contract SplitSwapRouterLiteFuzzTest is DSTest {
+    using stdStorage for StdStorage;
+    StdStorage stdstore;
     Vm internal constant vm = Vm(HEVM_ADDRESS);
     SplitSwapRouterLite router;
     // OpenMevLibrary lib;
@@ -28,7 +31,21 @@ contract SplitSwapRouterLiteFuzzTest is DSTest {
     uint256 minLiquidity = uint256(1000);
 
     function setUp() public {
-        router = new SplitSwapRouterLite();
+        router = new SplitSwapRouterLite(
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
+            address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
+            address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f), // Uni V2 factory
+            bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
+            bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
+        );
+    }
+
+    function writeTokenBalance(
+        address who,
+        address token,
+        uint256 amt
+    ) internal {
+        stdstore.target(token).sig(ERC20(token).balanceOf.selector).with_key(who).checked_write(amt);
     }
 
     receive() external payable {}
@@ -146,89 +163,58 @@ contract SplitSwapRouterLiteFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForETH(uint256 amountIn) external {
-        vm.assume(amountIn > 1000000000000);
-        vm.assume(amountIn < address(this).balance / 4);
-        // uint256 amountIn = 1000000000000000000;
+        vm.assume(amountIn > 100000000);
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
 
-        address to = address(this);
-        uint256 deadline = block.timestamp;
-        // ERC20(path[0]).approve(address(router), amountIn);
-        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
         path[0] = USDC;
         path[1] = WETH;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
-        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
         uint256[] memory amounts = router.swapExactTokensForETH(
-            amountsUSDC[amountsUSDC.length - 1],
+            amountIn / 2,
             amountOutMin,
             path,
-            to,
-            deadline
+            address(this),
+            block.timestamp
         );
         uint256[] memory amounts2 = routerOld.swapExactTokensForETH(
-            amountsUSDC2[amountsUSDC2.length - 1],
+            amountIn / 2,
             amountOutMin,
             path,
-            to,
-            deadline
+            address(this),
+            block.timestamp
         );
 
         assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 
     function testSwapTokensForExactETH(uint256 amountIn) external {
-        vm.assume(amountIn > 1000000000000000);
-        vm.assume(amountIn < address(this).balance / 4);
-        // uint256 amountIn = 1000000000000000000;
-        uint256 amountOutMin = 0;
+        vm.assume(amountIn > 100000000);
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
+        // uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
         address to = address(this);
         uint256 deadline = block.timestamp;
-        // ERC20(path[0]).approve(address(router), amountIn);
-        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
         path[0] = USDC;
         path[1] = WETH;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
-        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
         uint256[] memory amounts = router.swapTokensForExactETH(
-            router.getAmountsOut(amountsUSDC[amountsUSDC.length - 1], path)[1],
-            amountsUSDC[amountsUSDC.length - 1],
+            router.getAmountsOut(amountIn / 2, path)[1],
+            amountIn / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactETH(
-            routerOld.getAmountsOut(amountsUSDC2[amountsUSDC2.length - 1], path)[1],
-            amountsUSDC2[amountsUSDC2.length - 1],
+            routerOld.getAmountsOut(amountIn / 2, path)[1],
+            amountIn / 2,
             path,
             to,
             deadline
@@ -238,87 +224,49 @@ contract SplitSwapRouterLiteFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 100000000000000000); // eth amount
-        vm.assume(amountIn < address(this).balance / 4);
-        (, uint112 reserveWeth, ) = usdWeth.getReserves();
-        vm.assume(amountIn < reserveWeth / 10);
-        // uint256 amountIn = 1000000000000000000;
+        vm.assume(amountIn > 100000000); // usdc amount
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
         address to = address(this);
         uint256 deadline = block.timestamp;
 
-        uint256[] memory amountsUSDC = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
         path[0] = USDC;
         path[1] = DAI;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1] / 2);
-        usdc.approve(address(routerOld), amountsUSDC[amountsUSDC.length - 1] / 2);
-        uint256[] memory amounts = router.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1] / 2,
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amounts2 = routerOld.swapExactTokensForTokens(
-            amountsUSDC[amountsUSDC.length - 1] / 2,
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
+        uint256[] memory amounts = router.swapExactTokensForTokens(amountIn / 2, amountOutMin, path, to, deadline);
+        uint256[] memory amounts2 = routerOld.swapExactTokensForTokens(amountIn / 2, amountOutMin, path, to, deadline);
 
         assertGe(amounts[amounts.length - 1], amounts2[amounts2.length - 1]);
     }
 
     function testSwapTokensForExactTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 1000000000000000);
-        vm.assume(amountIn < address(this).balance / 4);
-        (, uint112 reserveWeth, ) = usdWeth.getReserves();
-        vm.assume(amountIn < reserveWeth / 10);
-        // uint256 amountIn = 1000000000000000000;
-        uint256 amountOutMin = 0;
+        vm.assume(amountIn > 100000000); // usdc amount
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
+        // uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
         address to = address(this);
         uint256 deadline = block.timestamp;
-        // ERC20(path[0]).approve(address(router), amountIn);
-        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+
         path[0] = USDC;
         path[1] = DAI;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
-        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
         uint256[] memory amounts = router.swapTokensForExactTokens(
-            router.getAmountsOut(amountsUSDC[amountsUSDC.length - 1], path)[1],
-            amountsUSDC[amountsUSDC.length - 1],
+            router.getAmountsOut(amountIn / 2, path)[1],
+            amountIn / 2,
             path,
             to,
             deadline
         );
         uint256[] memory amounts2 = routerOld.swapTokensForExactTokens(
-            routerOld.getAmountsOut(amountsUSDC2[amountsUSDC2.length - 1], path)[1],
-            amountsUSDC2[amountsUSDC2.length - 1],
+            routerOld.getAmountsOut(amountIn / 2, path)[1],
+            amountIn / 2,
             path,
             to,
             deadline
@@ -352,97 +300,45 @@ contract SplitSwapRouterLiteFuzzTest is DSTest {
     }
 
     function testSwapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 1000000000000);
-        vm.assume(amountIn < address(this).balance / 4);
-        // uint256 amountIn = 1000000000000000000;
+        vm.assume(amountIn > 100000000); // usdc amount
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
         address to = address(this);
         uint256 deadline = block.timestamp;
-        // ERC20(path[0]).approve(address(router), amountIn);
-        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+
         path[0] = USDC;
         path[1] = WETH;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
-        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
         uint256 balanceBefore = address(this).balance;
-        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            amountsUSDC[amountsUSDC.length - 1],
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(amountIn / 2, amountOutMin, path, to, deadline);
         uint256 balanceMid = address(this).balance;
-        routerOld.swapExactTokensForETHSupportingFeeOnTransferTokens(
-            amountsUSDC2[amountsUSDC2.length - 1],
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        routerOld.swapExactTokensForETHSupportingFeeOnTransferTokens(amountIn / 2, amountOutMin, path, to, deadline);
 
         assertGe(balanceMid - balanceBefore, address(this).balance - balanceMid);
     }
 
     function testSwapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn) external {
-        vm.assume(amountIn > 1000000000000);
-        vm.assume(amountIn < address(this).balance / 4);
-        // uint256 amountIn = 1000000000000000000;
+        vm.assume(amountIn > 100000000); // usdc amount
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10);
         uint256 amountOutMin = 0;
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = USDC;
-
         address to = address(this);
         uint256 deadline = block.timestamp;
-        // ERC20(path[0]).approve(address(router), amountIn);
-        uint256[] memory amountsUSDC = router.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
-        uint256[] memory amountsUSDC2 = routerOld.swapExactETHForTokens{ value: amountIn }(
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+
         path[0] = USDC;
         path[1] = DAI;
-        usdc.approve(address(router), amountsUSDC[amountsUSDC.length - 1]);
-        usdc.approve(address(routerOld), amountsUSDC2[amountsUSDC2.length - 1]);
+        writeTokenBalance(address(this), USDC, amountIn);
+        usdc.approve(address(router), amountIn / 2);
+        usdc.approve(address(routerOld), amountIn / 2);
         uint256 balanceBefore = dai.balanceOf(address(this));
-        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            amountsUSDC[amountsUSDC.length - 1],
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn / 2, amountOutMin, path, to, deadline);
         uint256 balanceMid = dai.balanceOf(address(this));
-        routerOld.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            amountsUSDC2[amountsUSDC2.length - 1],
-            amountOutMin,
-            path,
-            to,
-            deadline
-        );
+        routerOld.swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn / 2, amountOutMin, path, to, deadline);
 
         assertGe(balanceMid - balanceBefore, dai.balanceOf(address(this)) - balanceMid);
     }

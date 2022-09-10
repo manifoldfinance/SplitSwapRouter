@@ -45,7 +45,7 @@ forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterFuzzTest
 [Fuzz test result](docs/fuzz-test.md)
 
 ```sh
-forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterFuzzLiteTest
+forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterLiteFuzzTest
 ```
 
 [Fuzz test lite result](docs/fuzz-test-lite.md)
@@ -78,15 +78,31 @@ source ./script/1inch-api-test.sh
 [Dynamic api test result](docs/1inch-test.md)
 
 ## Test deploy
+Ethereum mainnet:
 ```sh
 forge script script/Deploy.s.sol:DeployScript --rpc-url $ETH_RPC_URL
+```
+
+Polygon mainnet:
+```sh
+forge script script/Deploy.s.sol:DeployScript --rpc-url $POLYGON_RPC_URL
+```
+
+Avalanche mainnet:
+```sh
+forge script script/DeployLite.s.sol:DeployLiteScript --rpc-url $AVALANCHE_RPC_URL
+```
+
+Fantom mainnet:
+```sh
+forge script script/DeployLite.s.sol:DeployLiteScript --rpc-url $FANTOM_RPC_URL
 ```
 
 ## Deploy and verify on etherscan
 Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ```sh
-./script/deploy.sh
+./script/deploy-eth.sh
 ```
 
 ### Todo
@@ -98,10 +114,6 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ### In Progress
 
-- [ ] Streamline fuzz tests
-- [ ] Modify `SplitSwapRouterLite` for multi-chain
-- [ ] Deployment scripts for multi-chain
-
 ### Done ✓
 
 - [x] Derived uint equation for amounts to sync prices and optimally splitting equal price markets via cumulative reserve ratios
@@ -112,4 +124,6 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 - [x] Cross-chain compatible
 - [x] Benchmark performance vs 1inch v4
 - [x] 1inch v4 dynamic api test
-- [x] Documentation of derived math and code 
+- [x] Documentation of derived math and code
+- [x] Modify `SplitSwapRouterLite` for multi-chain
+- [x] Deployment scripts for multi-chain

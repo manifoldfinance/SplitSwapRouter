@@ -33,25 +33,42 @@ library SplitSwapLibraryLite {
         uint256 amountOut1;
     }
 
-    address internal constant SUSHI_FACTORY = 0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac;
-    bytes32 internal constant SUSHI_FACTORY_HASH = 0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303;
-    bytes32 internal constant BACKUP_FACTORY_HASH = 0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
-    uint256 internal constant FF_SUSHI_FACTORY = 0xFFC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac0000000000000000000000;
-    uint256 internal constant FF_BACKUP_FACTORY = 0xFF5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f0000000000000000000000;
     uint256 internal constant MINIMUM_LIQUIDITY = 1000;
     uint256 internal constant EST_SWAP_GAS_USED = 150000;
 
-    /// @notice Retreive factoryCodeHash from factory address
-    /// @param factory Dex factory
-    /// @return initCodeHash factory code hash for pair address calculation
-    /// @return ffFactory formatted factory address prefixed with 0xff and shifted for abi encoding
-    function factoryHash(address factory) internal pure returns (bytes32 initCodeHash, uint256 ffFactory) {
-        if (factory == SUSHI_FACTORY) {
-            initCodeHash = SUSHI_FACTORY_HASH;
-            ffFactory = FF_SUSHI_FACTORY;
-        } else {
-            initCodeHash = BACKUP_FACTORY_HASH;
-            ffFactory = FF_BACKUP_FACTORY;
+    /// @custom:assembly Calculates the CREATE2 address for a pair without making any external calls from pre-sorted tokens
+    /// @notice Calculates the CREATE2 address for a pair without making any external calls from pre-sorted tokens
+    /// @dev Factory passed in directly because we have multiple factories. Format changes for new solidity spec.
+    /// @param factory Factory address for dex
+    /// @param token0 Pool token
+    /// @param token1 Pool token
+    /// @param factoryHash Init code hash for factory
+    /// @return pair Pair pool address
+    function _asmPairFor(
+        address factory,
+        address token0,
+        address token1,
+        bytes32 factoryHash
+    ) internal pure returns (address pair) {
+        // There is one contract for every combination of tokens,
+        // which is deployed using CREATE2.
+        // The derivation of this address is given by:
+        //   address(keccak256(abi.encodePacked(
+        //       bytes(0xFF),
+        //       address(UNISWAP_FACTORY_ADDRESS),
+        //       keccak256(abi.encodePacked(token0, token1)),
+        //       bytes32(UNISWAP_PAIR_INIT_CODE_HASH),
+        //   )));
+        assembly ("memory-safe") {
+            let ptr := mload(0x40) // get free memory pointer
+            mstore(ptr, shl(96, token0))
+            mstore(add(ptr, 0x14), shl(96, token1))
+            let salt := keccak256(ptr, 0x28) // keccak256(token0, token1)
+            mstore(ptr, 0xFF00000000000000000000000000000000000000000000000000000000000000) // buffered 0xFF prefix
+            mstore(add(ptr, 0x01), shl(96, factory)) // factory address prefixed
+            mstore(add(ptr, 0x15), salt)
+            mstore(add(ptr, 0x35), factoryHash) // factory init code hash
+            pair := keccak256(ptr, 0x55)
         }
     }
 
@@ -90,44 +107,11 @@ library SplitSwapLibraryLite {
     function pairFor(
         address factory,
         address tokenA,
-        address tokenB
+        address tokenB,
+        bytes32 factoryHash
     ) internal pure returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = _asmPairFor(factory, token0, token1);
-    }
-
-    /// @custom:assembly Calculates the CREATE2 address for a pair without making any external calls from pre-sorted tokens
-    /// @notice Calculates the CREATE2 address for a pair without making any external calls from pre-sorted tokens
-    /// @dev Factory passed in directly because we have multiple factories. Format changes for new solidity spec.
-    /// @param factory Factory address for dex
-    /// @param token0 Pool token
-    /// @param token1 Pool token
-    /// @return pair Pair pool address
-    function _asmPairFor(
-        address factory,
-        address token0,
-        address token1
-    ) internal pure returns (address pair) {
-        (bytes32 initCodeHash, uint256 ffFactory) = factoryHash(factory);
-        // There is one contract for every combination of tokens,
-        // which is deployed using CREATE2.
-        // The derivation of this address is given by:
-        //   address(keccak256(abi.encodePacked(
-        //       bytes(0xFF),
-        //       address(UNISWAP_FACTORY_ADDRESS),
-        //       keccak256(abi.encodePacked(token0, token1)),
-        //       bytes32(UNISWAP_PAIR_INIT_CODE_HASH),
-        //   )));
-        assembly ("memory-safe") {
-            let ptr := mload(0x40) // get free memory pointer
-            mstore(ptr, shl(96, token0))
-            mstore(add(ptr, 0x14), shl(96, token1))
-            let salt := keccak256(ptr, 0x28) // keccak256(token0, token1)
-            mstore(ptr, ffFactory) // factory address prefixed with 0xFF as a bigendian uint
-            mstore(add(ptr, 0x15), salt)
-            mstore(add(ptr, 0x35), initCodeHash) // factory init code hash
-            pair := keccak256(ptr, 0x55)
-        }
+        pair = _asmPairFor(factory, token0, token1, factoryHash);
     }
 
     /// @notice Fetches and sorts the reserves for a pair
@@ -139,10 +123,12 @@ library SplitSwapLibraryLite {
     function getReserves(
         address factory,
         address tokenA,
-        address tokenB
+        address tokenB,
+        bytes32 factoryHash
     ) internal view returns (uint256 reserveA, uint256 reserveB) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1)).getReserves();
+        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_asmPairFor(factory, token0, token1, factoryHash))
+            .getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 
@@ -217,6 +203,7 @@ library SplitSwapLibraryLite {
     function getAmountsOut(
         address factory,
         uint256 amountIn,
+        bytes32 factoryHash,
         address[] memory path
     ) internal view returns (uint256[] memory amounts) {
         uint256 length = path.length;
@@ -224,7 +211,7 @@ library SplitSwapLibraryLite {
         amounts = new uint256[](length);
         amounts[0] = amountIn;
         for (uint256 i; i < _dec(length); i = _inc(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[i], path[_inc(i)], factoryHash);
             amounts[_inc(i)] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -235,9 +222,11 @@ library SplitSwapLibraryLite {
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsOut(
-        address weth,
+        address factory0,
         address factory1,
         uint256 amountIn,
+        bytes32 factoryHash0,
+        bytes32 factoryHash1,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
@@ -247,8 +236,8 @@ library SplitSwapLibraryLite {
             if (_isNonZero(i)) amountIn = swaps[_dec(i)].amountOut0 + swaps[_dec(i)].amountOut1; // gather split swap amounts
             {
                 (address token0, address token1) = sortTokens(path[i], path[_inc(i)]);
-                swaps[i].pair0 = _asmPairFor(SUSHI_FACTORY, token0, token1);
-                swaps[i].pair1 = _asmPairFor(factory1, token0, token1);
+                swaps[i].pair0 = _asmPairFor(factory0, token0, token1, factoryHash0);
+                swaps[i].pair1 = _asmPairFor(factory1, token0, token1, factoryHash1);
                 swaps[i].isReverse = path[i] == token1;
             }
             swaps[i].tokenIn = path[i];
@@ -265,8 +254,6 @@ library SplitSwapLibraryLite {
             }
             // find optimal route
             (swaps[i].amountIn0, swaps[i].amountOut0, swaps[i].amountIn1, swaps[i].amountOut1) = _optimalRoute(
-                weth,
-                swaps[i].tokenOut,
                 amountIn,
                 reserveIn0,
                 reserveOut0,
@@ -285,6 +272,7 @@ library SplitSwapLibraryLite {
     function getAmountsIn(
         address factory,
         uint256 amountOut,
+        bytes32 factoryHash,
         address[] memory path
     ) internal view returns (uint256[] memory amounts) {
         uint256 length = path.length;
@@ -292,7 +280,7 @@ library SplitSwapLibraryLite {
         amounts = new uint256[](length);
         amounts[_dec(length)] = amountOut;
         for (uint256 i = _dec(length); _isNonZero(i); i = _dec(i)) {
-            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i]);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(factory, path[_dec(i)], path[i], factoryHash);
             amounts[_dec(i)] = getAmountIn(amounts[i], reserveIn, reserveOut);
         }
     }
@@ -303,9 +291,11 @@ library SplitSwapLibraryLite {
     /// @param path Array of token addresses. path.length must be >= 2. Pools for each consecutive pair of addresses must exist and have liquidity
     /// @return swaps Array Swap data for each user swap in path
     function getSwapsIn(
-        address weth,
+        address factory0,
         address factory1,
         uint256 amountOut,
+        bytes32 factoryHash0,
+        bytes32 factoryHash1,
         address[] memory path
     ) internal view returns (Swap[] memory swaps) {
         uint256 length = path.length;
@@ -315,8 +305,8 @@ library SplitSwapLibraryLite {
             if (i < _dec(length)) amountOut = swaps[i].amountIn0 + swaps[i].amountIn1; // gather split swap amounts
             {
                 (address token0, address token1) = sortTokens(path[_dec(i)], path[i]);
-                swaps[_dec(i)].pair0 = _asmPairFor(SUSHI_FACTORY, token0, token1);
-                swaps[_dec(i)].pair1 = _asmPairFor(factory1, token0, token1);
+                swaps[_dec(i)].pair0 = _asmPairFor(factory0, token0, token1, factoryHash0);
+                swaps[_dec(i)].pair1 = _asmPairFor(factory1, token0, token1, factoryHash1);
                 swaps[_dec(i)].isReverse = path[i] == token0;
             }
             swaps[_dec(i)].tokenIn = path[_dec(i)];
@@ -337,21 +327,11 @@ library SplitSwapLibraryLite {
                 swaps[_dec(i)].amountOut0,
                 swaps[_dec(i)].amountIn1,
                 swaps[_dec(i)].amountOut1
-            ) = _optimalRouteIn(
-                weth,
-                swaps[_dec(i)].tokenIn,
-                amountOut,
-                reserveIn0,
-                reserveOut0,
-                reserveIn1,
-                reserveOut1
-            );
+            ) = _optimalRouteIn(amountOut, reserveIn0, reserveOut0, reserveIn1, reserveOut1);
         }
     }
 
     function _optimalRoute(
-        address weth,
-        address tokenOut,
         uint256 amountIn,
         uint256 reserveIn0,
         uint256 reserveOut0,
@@ -359,7 +339,7 @@ library SplitSwapLibraryLite {
         uint256 reserveOut1
     )
         internal
-        view
+        pure
         returns (
             uint256 amountIn0,
             uint256 amountOut0,
@@ -376,8 +356,6 @@ library SplitSwapLibraryLite {
             if (_isNonZero(uniAmountOut)) {
                 // split route
                 (amountIn0, amountOut0, amountIn1, amountOut1) = _splitRoute(
-                    weth,
-                    tokenOut,
                     amountIn,
                     sushiAmountOut,
                     reserveIn0,
@@ -393,8 +371,6 @@ library SplitSwapLibraryLite {
             if (_isNonZero(sushiAmountOut)) {
                 // split route
                 (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRoute(
-                    weth,
-                    tokenOut,
                     amountIn,
                     uniAmountOut,
                     reserveIn1,
@@ -407,8 +383,6 @@ library SplitSwapLibraryLite {
     }
 
     function _splitRoute(
-        address weth,
-        address tokenOut,
         uint256 amountIn,
         uint256 amountOutOnePair,
         uint256 reserveIn0,
@@ -417,7 +391,7 @@ library SplitSwapLibraryLite {
         uint256 reserveOut1
     )
         internal
-        view
+        pure
         returns (
             uint256 amountIn0,
             uint256 amountOut0,
@@ -430,20 +404,12 @@ library SplitSwapLibraryLite {
         amountOut0 = amountOutOnePair;
         uint256 amount0 = _amountToSyncPrices(reserveIn0, reserveOut0, reserveIn1, reserveOut1);
         if (amount0 < amountIn - MINIMUM_LIQUIDITY) {
-            // reserveOut0 =
-            //     reserveOut0 -
-            //     getAmountOut(amount0, reserveIn0, reserveOut0);
-            // reserveIn0 = reserveIn0 + amount0;
             uint256 amountInFirstPair = amount0 +
                 ((amountIn - amount0) * (reserveIn0 + amount0)) /
                 (reserveIn0 + amount0 + reserveIn1);
             uint256 amountOutFirstPair = getAmountOut(amountInFirstPair, reserveIn0, reserveOut0);
             uint256 amountOutSecondPair = getAmountOut(amountIn - amountInFirstPair, reserveIn1, reserveOut1);
-            if (
-                _isNonZero(amountOutFirstPair + amountOutSecondPair - amountOutOnePair) &&
-                _wethAmount(weth, tokenOut, amountOutFirstPair + amountOutSecondPair - amountOutOnePair) >
-                block.basefee * EST_SWAP_GAS_USED
-            ) {
+            if (_isNonZero(amountOutFirstPair + amountOutSecondPair - amountOutOnePair)) {
                 // split route better than extra gas cost
                 amountIn0 = amountInFirstPair;
                 amountIn1 = amountIn - amountInFirstPair;
@@ -454,8 +420,6 @@ library SplitSwapLibraryLite {
     }
 
     function _optimalRouteIn(
-        address weth,
-        address tokenIn,
         uint256 amountOut,
         uint256 reserveIn0,
         uint256 reserveOut0,
@@ -463,7 +427,7 @@ library SplitSwapLibraryLite {
         uint256 reserveOut1
     )
         internal
-        view
+        pure
         returns (
             uint256 amountIn0,
             uint256 amountOut0,
@@ -482,8 +446,6 @@ library SplitSwapLibraryLite {
             if (_isNonZero(uniAmountIn)) {
                 // split route
                 (amountIn0, amountOut0, amountIn1, amountOut1) = _splitRouteIn(
-                    weth,
-                    tokenIn,
                     amountOut,
                     sushiAmountIn,
                     reserveIn0,
@@ -499,8 +461,6 @@ library SplitSwapLibraryLite {
             if (_isNonZero(sushiAmountIn)) {
                 // split route
                 (amountIn1, amountOut1, amountIn0, amountOut0) = _splitRouteIn(
-                    weth,
-                    tokenIn,
                     amountOut,
                     uniAmountIn,
                     reserveIn1,
@@ -513,8 +473,6 @@ library SplitSwapLibraryLite {
     }
 
     function _splitRouteIn(
-        address weth,
-        address tokenIn,
         uint256 amountOut,
         uint256 amountInOnePair,
         uint256 reserveIn0,
@@ -523,7 +481,7 @@ library SplitSwapLibraryLite {
         uint256 reserveOut1
     )
         internal
-        view
+        pure
         returns (
             uint256 amountIn0,
             uint256 amountOut0,
@@ -536,10 +494,6 @@ library SplitSwapLibraryLite {
         amountOut0 = amountOut;
         uint256 amount0 = _amountToSyncPrices(reserveIn0, reserveOut0, reserveIn1, reserveOut1);
         if (_isNonZero(amount0) && amount0 < amountInOnePair - MINIMUM_LIQUIDITY) {
-            // reserveOut0 =
-            //     reserveOut0 -
-            //     getAmountOut(amount0, reserveIn0, reserveOut0);
-            // reserveIn0 = reserveIn0 + amount0;
             uint256 amountInFirstPair;
             unchecked {
                 amountInFirstPair =
@@ -551,11 +505,7 @@ library SplitSwapLibraryLite {
             uint256 amountOutFirstPair = getAmountOut(amountInFirstPair, reserveIn0, reserveOut0);
             uint256 amountOutSecondPair = amountOut - amountOutFirstPair;
             uint256 amountInSecondPair = getAmountIn(amountOutSecondPair, reserveIn1, reserveOut1);
-            if (
-                _isNonZero(amountInOnePair - amountInFirstPair - amountInSecondPair) &&
-                _wethAmount(weth, tokenIn, amountInOnePair - amountInFirstPair - amountInSecondPair) >
-                block.basefee * EST_SWAP_GAS_USED
-            ) {
+            if (_isNonZero(amountInOnePair - amountInFirstPair - amountInSecondPair)) {
                 // split route better than extra gas cost
                 amountIn0 = amountInFirstPair;
                 amountIn1 = amountInSecondPair;
@@ -573,30 +523,6 @@ library SplitSwapLibraryLite {
     ) internal pure returns (uint256) {
         unchecked {
             return (x1 * (Babylonian.sqrt(9 + ((1000000 * x2 * y1) / (y2 * x1))) - 1997)) / 1994;
-        }
-    }
-
-    /// @notice Calculate eth value of a token amount
-    /// @param token Address of token
-    /// @param amount Amount of token
-    /// @return eth value
-    function _wethAmount(
-        address weth,
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        if (token == weth) return amount;
-        address pair;
-        bool isReverse;
-        {
-            (address token0, address token1) = sortTokens(token, weth);
-            pair = _asmPairFor(SUSHI_FACTORY, token0, token1);
-            isReverse = weth == token0;
-        }
-        {
-            (uint112 reserve0, uint112 reserve1, ) = IUniswapV2Pair(pair).getReserves();
-            (uint112 reserveIn, uint112 reserveOut) = isReverse ? (reserve1, reserve0) : (reserve0, reserve1);
-            return getAmountOut(amount, reserveIn, reserveOut);
         }
     }
 

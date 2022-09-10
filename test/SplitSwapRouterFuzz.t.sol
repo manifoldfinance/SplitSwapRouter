@@ -2,9 +2,10 @@
 
 pragma solidity >=0.8.13 <0.9.0;
 
+import "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { DSTest } from "ds-test/test.sol";
 import { SplitSwapRouter } from "../src/SplitSwapRouter.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";
@@ -12,6 +13,8 @@ import { ERC20 } from "../src/ERC20.sol";
 
 /// @title SplitSwapRouterTest
 contract SplitSwapRouterFuzzTest is DSTest {
+    using stdStorage for StdStorage;
+    StdStorage stdstore;
     Vm internal constant vm = Vm(HEVM_ADDRESS);
     SplitSwapRouter router;
     address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -37,6 +40,14 @@ contract SplitSwapRouterFuzzTest is DSTest {
             bytes32(0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303), // sushi pair code hash
             bytes32(0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f) // uni pair code hash
         );
+    }
+
+    function writeTokenBalance(
+        address who,
+        address token,
+        uint256 amt
+    ) internal {
+        stdstore.target(token).sig(ERC20(token).balanceOf.selector).with_key(who).checked_write(amt);
     }
 
     receive() external payable {}
