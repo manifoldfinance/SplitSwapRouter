@@ -6,11 +6,11 @@ Optimal split order router for sushiswap, uni v2 (or fork) and uni v3 pools
 */
 
 /// ============ Internal Imports ============
-import "./ERC20.sol";
 import "./interfaces/IWETH.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
 import "./libraries/SplitSwapLibrary.sol";
-import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 /// @title SplitSwapRouter
 /// @author Sandy Bradley <@sandybradley>, ControlCplusControlV <@ControlCplusControlV>

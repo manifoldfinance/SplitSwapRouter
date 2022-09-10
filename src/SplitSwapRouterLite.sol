@@ -6,10 +6,10 @@ Optimal split order router for single swaps with identical markets on uniV2 fork
 */
 
 /// ============ Internal Imports ============
-import "./ERC20.sol";
 import "./interfaces/IWETH.sol";
 import "./libraries/SplitSwapLibraryLite.sol";
-import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 /// @title SplitSwapRouterLite
 /// @author Sandy Bradley <@sandybradley>

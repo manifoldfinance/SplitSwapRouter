@@ -9,7 +9,7 @@ import { SplitSwapRouter } from "../src/SplitSwapRouter.sol";
 import { IUniswapV2Router02 } from "../src/interfaces/IUniswapV2Router.sol";
 import { IUniswapV2Pair } from "../src/interfaces/IUniswapV2Pair.sol";
 import { IWETH } from "../src/interfaces/IWETH.sol";
-import { ERC20 } from "../src/ERC20.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
 
 /// @title SplitSwapRouterTest
 contract SplitSwapRouterVS1inchTest is DSTest {
