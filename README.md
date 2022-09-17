@@ -1,6 +1,6 @@
 # Split Swap Router ![Foundry](https://github.com/manifoldfinance/SplitSwapRouter/actions/workflows/test.yml/badge.svg?branch=main)
 
-### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 
+### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 (IUniswapV2Router compatibale)
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
@@ -38,44 +38,85 @@ forge build
 ```
 
 ## Fuzz tests
+
+Fuzz test all methods on `SplitSwapRouter` produce better results than Sushiswap, on ethereum network.
 ```sh
 forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterFuzzTest
 ```
 
 [Fuzz test result](docs/fuzz-test.md)
 
+
+Fuzz test all methods on `SplitSwapRouterLite` produce better results than Sushiswap, on ethereum network.
 ```sh
 forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterLiteFuzzTest
 ```
 
 [Fuzz test lite result](docs/fuzz-test-lite.md)
 
+## Edge case tests (negatives and random pairs)
+
+Test reverts execute as expected and random pairs are picked for swap testing.
+```sh
+forge test -f "$ETH_RPC_URL" -vvv --match-contract SplitSwapRouterEdgeTest
+```
+
+[Test result](docs/edge-test.md)
+
+
 ## Benchmarking against 1-Inch v4
 
-Benchmark transactions from 1-Inch v4:
-- https://etherscan.io/tx/0x3e506fb505c538805752e419356c3a6ce8b05a29d34ca563c95e894fda75bf80
-- https://etherscan.io/tx/0x36eeb2248b7fc1f95bfbbf3be467ac70018a7c53120e3ec4da716707e08c01f0
-- https://etherscan.io/tx/0xa9d979dc02f5a5293431d015e0eb6c9eea963dbe4a00cccd556d703eb3b91bb1
-- https://etherscan.io/tx/0xf2c30b239cd6f77427b2998b930eff3c0eb4bb50a92f7993d379484161c89480
-- https://etherscan.io/tx/0xd851a00e54dace8f77cd7e6f25c28818177ac3e1f5a3b18795a9c747723cb7a9
-
-`SplitSwapRouter` uses ~20% of the gas of 1-Inch with an output within ~ 1%
+`SplitSwapRouter` uses ~20% of the gas of 1-Inch with an output $\pm$ 1%. Moreover, no external API call for an offchain aggregator is needed.
 
 ### Run the tests
 
-Benchmarks
+Dynamic Api test uses 1 inch API to get best route for a current large swap, passing the data to the test script for simulated execution against `SplitSwapRouter`.
+
+```sh
+source ./script/1inch-api-test.sh
+```
+
+[Dynamic api test result](docs/1inch-test.md)
+
+In addition, benchmark on-chain transactions from 1-Inch V4 have been recorded, to fork and test against:
+
+- [450 ETH -> 850,818 USDC (block 15347844)](https://etherscan.io/tx/0x3e506fb505c538805752e419356c3a6ce8b05a29d34ca563c95e894fda75bf80)
+- [797 ETH -> 61 WBTC (block 15408223)](https://etherscan.io/tx/0x36eeb2248b7fc1f95bfbbf3be467ac70018a7c53120e3ec4da716707e08c01f0)
+- [100 ETH -> 170,278 DAI (block 15409162)](https://etherscan.io/tx/0xa9d979dc02f5a5293431d015e0eb6c9eea963dbe4a00cccd556d703eb3b91bb1)
+- [123 ETH -> 209,720 USDT (block 15409150)](https://etherscan.io/tx/0xf2c30b239cd6f77427b2998b930eff3c0eb4bb50a92f7993d379484161c89480)
+- [2.8 MKR -> 1.4 ETH (block 15396937)](https://etherscan.io/tx/0xd851a00e54dace8f77cd7e6f25c28818177ac3e1f5a3b18795a9c747723cb7a9)
+
 ```sh
 forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapRouterVS1inchTest --etherscan-api-key $ETHERSCAN_API
 ```
 
 [Benchmark test result](docs/benchmark-test.md)
 
-Dynamic Api
+
+## Test invest
+
+A little off-chain knowledge can turn `SplitSwapRouter` into a smart order router, by simply knowing possible routes and their relative reserves upfront. This can be acheived with a front-end interface and presents scope for further work. As a working example, we show the gain for a FOLD investor using `SplitSwapRouter` with 2 routes. 
+
+Trade 140 ETH -> FOLD 
+- best route would be determined by knowing the pools upfront:
+  - [3 Uniswap V3 pools (containing ETH-FOLD & USDC-FOLD)](https://info.uniswap.org/#/tokens/0xd084944d3c05cd115c09d072b9f44ba3e0e45921)
+  - [1 sushi pool (ETH-FOLD)](https://analytics.sushi.com/pairs/0xa914a9b9e03b6af84f9c6bd2e0e8d27d405695db)
+
+- i.e. 2 Possible routes
+  - USDC-FOLD (preceded by ETH-USDC) ~ $1m
+  - ETH-FOLD ~ $1.5m
+
+Assuming prices are roughly equal, the optimal route split is by reserve ratios:
+ - send 140 ETH * 1m/(1m+1.5m) to `SplitSwapRouter` with a path ETH -> USDC -> FOLD
+ - send 140 ETH * 1.5m/(1m+1.5m) to `SplitSwapRouter` with a path ETH -> FOLD
+
+On each call `SplitSwapRouter` will further split between like pools. Simulating the case above would yield the investor 50% more FOLD than swapping on sushiswap.
+
 ```sh
-source ./script/1inch-api-test.sh
+forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapRouterInvestTest --etherscan-api-key $ETHERSCAN_API
 ```
 
-[Dynamic api test result](docs/1inch-test.md)
+[Test output](docs/invest-test.md)
 
 ## Test deploy
 Ethereum mainnet:

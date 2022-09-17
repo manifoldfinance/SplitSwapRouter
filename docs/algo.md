@@ -33,7 +33,7 @@ Using the ordered pools by best price, the optimal number of splits and the corr
 
 $$ \delta x_1 = A_{in} $$
 
-where $ A_{in} $ is the user amount in.
+where $A_{in}$ is the user amount in.
 
 ### Single Split (2 pools)
 
@@ -41,7 +41,7 @@ $$ \delta x_1 = A_1 + {(A_{in} - A_1) x'_1 \over x'_1 + x_2} $$
 
 $$ \delta x_2 = {(A_{in} - A_1) x_2 \over x'_1 + x_2} $$
 
-where $ A_i $ denotes amount to sync prices and updated reserve:
+where $A_i$ denotes amount to sync prices and $x'_i$ is the updated reserve:
 
 $$ x'_i = x_i + A_i $$
 
