@@ -1,6 +1,6 @@
 # Split Swap Router ![Foundry](https://github.com/manifoldfinance/SplitSwapRouter/actions/workflows/test.yml/badge.svg?branch=main)
 
-### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 (IUniswapV2Router compatibale)
+### Optimal Swap split between Sushiswap, Uniswap V3 and Uniswap V2 (IUniswapV2Router compatible)
 
 Based on math derived in [MEV paper by Liyi Zhou et al.](https://arxiv.org/pdf/2106.07371.pdf)
 
