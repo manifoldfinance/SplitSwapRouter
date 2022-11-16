@@ -30,6 +30,8 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
 
     /// @dev UniswapV2 pool 4 byte swap selector
     bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
+    /// @dev Governence for sweeping dust
+    address internal immutable GOV;
     /// @dev Wrapped native token address
     address internal immutable WETH09;
     /// @dev Sushiswap factory address
@@ -58,6 +60,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
         bytes32 sushiFactoryHash,
         bytes32 backupFactoryHash
     ) {
+        GOV = tx.origin;
         WETH09 = weth;
         SUSHI_FACTORY = sushiFactory;
         BACKUP_FACTORY = backupFactory;
@@ -474,7 +477,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
         address tokenOut,
         address pair,
         uint256 amountIn
-    ) internal virtual returns (uint256 amountOut) {
+    ) internal virtual returns (uint256 amountInActual, uint256 amountOut) {
         bytes memory data = abi.encodePacked(tokenIn, tokenOut, fee);
         uint160 sqrtPriceLimitX96 = isReverse ? MAX_SQRT_RATIO - 1 : MIN_SQRT_RATIO + 1;
         (int256 amount0, int256 amount1) = IUniswapV3Pool(pair).swap(
@@ -485,6 +488,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             data
         );
         amountOut = isReverse ? uint256(-(amount0)) : uint256(-(amount1));
+        amountInActual = isReverse ? uint256(amount1) : uint256(amount0);
     }
 
     /// @dev Internal core swap. Requires the initial amount to have already been sent to the first pair (for v2 pairs).
@@ -519,7 +523,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             // V3 swaps
             for (uint256 j = 2; j < 5; j = _inc(j)) {
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
-                    uint256 amountOut = _swapUniV3(
+                    (uint256 amountInActual, uint256 amountOut) = _swapUniV3(
                         swaps[i].isReverse,
                         uint24(SplitSwapLibrary.getFee(j)),
                         to,
@@ -529,6 +533,24 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
                         swaps[i].pools[j].amountIn
                     ); // single v3 swap
                     amounts[_inc(i)] = amounts[_inc(i)] + amountOut;
+                    // Edge Case: adjust next swap amount in if less than expected returned
+                    if (i < _dec(length) && amountOut < swaps[i].pools[j].amountOut) {
+                        if (swaps[i].pools[j].amountIn > amountInActual) {
+                            amounts[i] = amounts[i] + amountInActual - swaps[i].pools[j].amountIn;
+                        }
+                        for (uint256 k; k < 5; k = _inc(k)) {
+                            if (
+                                _isNonZero(swaps[_inc(i)].pools[k].amountIn) &&
+                                swaps[_inc(i)].pools[k].amountIn > (swaps[i].pools[j].amountOut - amountOut)
+                            ) {
+                                swaps[_inc(i)].pools[k].amountIn =
+                                    swaps[_inc(i)].pools[k].amountIn +
+                                    amountOut -
+                                    swaps[i].pools[j].amountOut;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -562,12 +584,15 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
+        uint256 amountInV3;
         for (uint256 i = 2; i < 5; i = _inc(i)) {
-            if (_isNonZero(swaps[0].pools[i].amountIn))
-                ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
+            if (_isNonZero(swaps[0].pools[i].amountIn)) amountInV3 = amountInV3 + swaps[0].pools[i].amountIn;
         }
+        if (_isNonZero(amountInV3)) ERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountInV3);
         amounts = _swap(to, swaps);
         if (amountOutMin > amounts[_dec(path.length)]) revert InsufficientOutputAmount();
+        //  refund V3 dust if any
+        if (amounts[0] < amountIn) ERC20(path[0]).safeTransfer(msg.sender, amountIn - amounts[0]);
     }
 
     /// @notice Receive an exact amount of output tokens for as few input tokens as possible, along the route determined by the path. msg.sender should have already given the router an allowance of at least amountInMax on the input token.
@@ -595,16 +620,23 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             BACKUP_FACTORY_HASH,
             path
         );
-        for (uint256 i; i < 2; i = _inc(i)) {
-            if (_isNonZero(swaps[0].pools[i].amountIn))
-                ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
-        }
+        uint256 amountIn;
         for (uint256 i = 2; i < 5; i = _inc(i)) {
-            if (_isNonZero(swaps[0].pools[i].amountIn))
-                ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
+            if (_isNonZero(swaps[0].pools[i].amountIn)) amountIn = amountIn + swaps[0].pools[i].amountIn;
+        }
+
+        if (_isNonZero(amountIn)) ERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
+
+        for (uint256 i; i < 2; i = _inc(i)) {
+            if (_isNonZero(swaps[0].pools[i].amountIn)) {
+                ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
+                amountIn = amountIn + swaps[0].pools[i].amountIn;
+            }
         }
         amounts = _swap(to, swaps);
         if (amountInMax < amounts[0]) revert ExcessiveInputAmount();
+        //  refund V3 dust if any
+        if (amounts[0] < amountIn) ERC20(path[0]).safeTransfer(msg.sender, amountIn - amounts[0]);
     }
 
     /// @notice Swaps an exact amount of ETH for as many output tokens as possible, along the route determined by the path. The first element of path must be WETH, the last is the output token. amountIn = msg.value
@@ -638,6 +670,11 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
         }
         amounts = _swap(to, swaps);
         if (amountOutMin > amounts[_dec(path.length)]) revert InsufficientOutputAmount();
+        //  refund V3 dust if any
+        if (amounts[0] < msg.value && (msg.value - amounts[0]) > 21000 * block.basefee) {
+            IWETH(weth).withdraw(msg.value - amounts[0]);
+            SafeTransferLib.safeTransferETH(msg.sender, msg.value - amounts[0]);
+        }
     }
 
     /// @notice Receive an exact amount of ETH for as few input tokens as possible, along the route determined by the path. The first element of path is the input token, the last must be WETH. msg.sender should have already given the router an allowance of at least amountInMax on the input token.
@@ -670,14 +707,17 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             if (_isNonZero(swaps[0].pools[i].amountIn))
                 ERC20(path[0]).safeTransferFrom(msg.sender, swaps[0].pools[i].pair, swaps[0].pools[i].amountIn);
         }
+        uint256 amountIn;
         for (uint256 i = 2; i < 5; i = _inc(i)) {
-            if (_isNonZero(swaps[0].pools[i].amountIn))
-                ERC20(path[0]).safeTransferFrom(msg.sender, address(this), swaps[0].pools[i].amountIn);
+            if (_isNonZero(swaps[0].pools[i].amountIn)) amountIn = amountIn + swaps[0].pools[i].amountIn;
         }
+        if (_isNonZero(amountIn)) ERC20(path[0]).safeTransferFrom(msg.sender, address(this), amountIn);
         amounts = _swap(address(this), swaps);
         if (amountInMax < amounts[0]) revert ExcessiveInputAmount();
         IWETH(weth).withdraw(amounts[_dec(path.length)]);
         SafeTransferLib.safeTransferETH(to, amounts[_dec(path.length)]);
+        //  refund V3 dust if any
+        if (amounts[0] < amountIn) ERC20(path[0]).safeTransfer(msg.sender, amountIn - amounts[0]);
     }
 
     /// @notice Swaps an exact amount of tokens for as much ETH as possible, along the route determined by the path. The first element of path is the input token, the last must be WETH.
@@ -719,6 +759,8 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
         if (amountOutMin > amountOut) revert InsufficientOutputAmount();
         IWETH(weth).withdraw(amountOut);
         SafeTransferLib.safeTransferETH(to, amountOut);
+        //  refund V3 dust if any
+        if (amounts[0] < amountIn) ERC20(path[0]).safeTransfer(msg.sender, amountIn - amounts[0]);
     }
 
     /// @notice Receive an exact amount of tokens for as little ETH as possible, along the route determined by the path. The first element of path must be WETH. Leftover ETH, if any, is returned to msg.sender. amountInMax = msg.value
@@ -804,7 +846,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
             for (uint256 j = 2; j < 5; j = _inc(j)) {
                 uint24 fee = uint24(SplitSwapLibrary.getFee(j));
                 if (_isNonZero(swaps[i].pools[j].amountIn)) {
-                    uint256 amountOut = _swapUniV3(
+                    (uint256 amountInActual, uint256 amountOut) = _swapUniV3(
                         swaps[i].isReverse,
                         fee,
                         to,
@@ -814,6 +856,24 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
                         swaps[i].pools[j].amountIn
                     ); // single v3 swap
                     amounts[_inc(i)] = amounts[_inc(i)] + amountOut;
+                    // Edge Case: adjust next swap amount in if less than expected returned
+                    if (i < _dec(length) && amountOut < swaps[i].pools[j].amountOut) {
+                        if (swaps[i].pools[j].amountIn > amountInActual) {
+                            amounts[i] = amounts[i] + amountInActual - swaps[i].pools[j].amountIn;
+                        }
+                        for (uint256 k; k < 5; k = _inc(k)) {
+                            if (
+                                _isNonZero(swaps[_inc(i)].pools[k].amountIn) &&
+                                swaps[_inc(i)].pools[k].amountIn > (swaps[i].pools[j].amountOut - amountOut)
+                            ) {
+                                swaps[_inc(i)].pools[k].amountIn =
+                                    swaps[_inc(i)].pools[k].amountIn +
+                                    amountOut -
+                                    swaps[i].pools[j].amountOut;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1017,6 +1077,18 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
                 amounts[_inc(i)] = amounts[_inc(i)] + swaps[i].pools[j].amountOut;
             }
         }
+    }
+
+    /// @notice Sweep dust tokens and eth to recipient
+    /// @param tokens Array of token addresses
+    /// @param recipient Address of recipient
+    function sweep(address[] calldata tokens, address recipient) external {
+        if (msg.sender != GOV) revert ExecuteNotAuthorized();
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            ERC20(token).safeTransfer(recipient, ERC20(token).balanceOf(address(this)));
+        }
+        SafeTransferLib.safeTransferETH(recipient, address(this).balance);
     }
 
     /// @custom:assembly Efficient single swap call

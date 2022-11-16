@@ -407,7 +407,7 @@ library SplitSwapLibrary {
         }
         // next 2 pools have variable rates
         for (uint256 i = 3; i < 5; i = _inc(i)) {
-            if (reserves[i].reserveOut > MINIMUM_LIQUIDITY) {
+            if (reserves[i].reserveOut > MINIMUM_LIQUIDITY && reserves[i].reserveIn > amountIn) {
                 amountsOutSingleSwap[i] = getAmountOutFee(
                     amountIn,
                     reserves[i].reserveIn,
@@ -415,7 +415,7 @@ library SplitSwapLibrary {
                     getFee(i)
                 );
                 if (i == 3 && _isNonZero(amountsOutSingleSwap[i])) {
-                    // 0.05 % pool potentially crosses more ticks, lowering expected output (add margin of error 0.1% of amountIn)
+                    // 0.05 % pool potentially crosses more ticks, lowering expected output (add margin of error 0.1%)
                     amountsOutSingleSwap[i] = amountsOutSingleSwap[i] - amountsOutSingleSwap[i] / 1000;
                 }
             }
