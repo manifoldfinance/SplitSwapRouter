@@ -31,7 +31,7 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
     /// @dev UniswapV2 pool 4 byte swap selector
     bytes4 internal constant SWAP_SELECTOR = bytes4(keccak256("swap(uint256,uint256,address,bytes)"));
     /// @dev Governence for sweeping dust
-    address internal immutable GOV;
+    address internal GOV;
     /// @dev Wrapped native token address
     address internal immutable WETH09;
     /// @dev Sushiswap factory address
@@ -1079,18 +1079,6 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
         }
     }
 
-    /// @notice Sweep dust tokens and eth to recipient
-    /// @param tokens Array of token addresses
-    /// @param recipient Address of recipient
-    function sweep(address[] calldata tokens, address recipient) external {
-        if (msg.sender != GOV) revert ExecuteNotAuthorized();
-        for (uint256 i; i < tokens.length; i++) {
-            address token = tokens[i];
-            ERC20(token).safeTransfer(recipient, ERC20(token).balanceOf(address(this)));
-        }
-        SafeTransferLib.safeTransferETH(recipient, address(this).balance);
-    }
-
     /// @custom:assembly Efficient single swap call
     /// @notice Internal call to perform single swap
     /// @param pair Address of pair to swap in
@@ -1198,4 +1186,22 @@ contract SplitSwapRouter is IUniswapV3SwapCallback {
 
     /// @notice Fallback function is called when msg.data is not empty
     fallback() external payable {}
+
+    function changeGov(address newGov) external {
+        if (msg.sender != GOV) revert ExecuteNotAuthorized();
+        GOV = newGov;
+    }
+
+    /// @notice Sweep dust tokens and eth to recipient
+    /// @param tokens Array of token addresses
+    /// @param recipient Address of recipient
+    function sweep(address[] calldata tokens, address recipient) external {
+        if (msg.sender != GOV) revert ExecuteNotAuthorized();
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            ERC20(token).safeTransfer(recipient, ERC20(token).balanceOf(address(this)));
+        }
+        SafeTransferLib.safeTransferETH(recipient, address(this).balance);
+    }
+
 }
