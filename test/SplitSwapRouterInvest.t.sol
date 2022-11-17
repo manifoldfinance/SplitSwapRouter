@@ -30,8 +30,10 @@ contract SplitSwapRouterInvestTest is DSTest {
     uint256 minLiquidity = uint256(1000);
     uint256 maxSwaps = uint256(12);
     mapping(address => bool) internal tokenBlacklist;
+    address gov = 0xE2aa13B5B5222F5f13E179b4a3c01f70A0b2eC40;
 
     function setUp() public {
+        vm.prank(gov, gov);
         router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
@@ -41,7 +43,19 @@ contract SplitSwapRouterInvestTest is DSTest {
         );
     }
 
+    function writeTokenBalance(
+        address who,
+        address token,
+        uint256 amt
+    ) internal {
+        stdstore.target(token).sig(ERC20(token).balanceOf.selector).with_key(who).checked_write(amt);
+    }
+
+    // Function to receive Ether. msg.data must be empty
     receive() external payable {}
+
+    // Fallback function is called when msg.data is not empty
+    fallback() external payable {}
 
     function testInvest() external {
         uint256 amountIn = 140000000000000000000;
@@ -53,11 +67,54 @@ contract SplitSwapRouterInvestTest is DSTest {
         path2[0] = WETH;
         path2[1] = USDC;
         path2[2] = FOLD;
-        uint256 partAmountIn = amountIn * 1500000 / 2500000;
-        uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn  }(0, path, address(this), block.timestamp);
-        uint256[] memory amounts1 = router.swapExactETHForTokens{ value: amountIn - partAmountIn  }(0, path2, address(this), block.timestamp);
+        uint256 partAmountIn = (amountIn * 2400000) / 2500000;
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        uint256[] memory amounts1 = router.swapExactETHForTokens{ value: amountIn - partAmountIn }(
+            0,
+            path2,
+            address(this),
+            block.timestamp
+        );
         vm.roll(blockNum); // roll back state
-        uint256[] memory amounts2 = routerOld.swapExactETHForTokens{ value: amountIn }(0, path, address(this), block.timestamp);
+        uint256[] memory amounts2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        assertGt((amounts[1] + amounts1[2]), amounts2[1]);
+    }
+
+    function testDivest() external {
+        uint256 amountIn = 140000000000000000000000;
+        uint256 blockNum = block.number;
+        address[] memory path = new address[](2);
+        path[0] = FOLD;
+        path[1] = WETH;
+        address[] memory path2 = new address[](3);
+        path2[0] = FOLD;
+        path2[1] = USDC;
+        path2[2] = WETH;
+        writeTokenBalance(address(this), FOLD, amountIn);
+        fold.approve(address(router), amountIn);
+        uint256 partAmountIn = (amountIn * 2400000) / 2500000;
+        uint256[] memory amounts = router.swapExactTokensForETH(partAmountIn, 0, path, address(this), block.timestamp);
+        uint256[] memory amounts1 = router.swapExactTokensForETH(
+            amountIn - partAmountIn,
+            0,
+            path2,
+            address(this),
+            block.timestamp
+        );
+        vm.roll(blockNum); // roll back state
+        writeTokenBalance(address(this), FOLD, amountIn);
+        fold.approve(address(routerOld), amountIn);
+        uint256[] memory amounts2 = routerOld.swapExactTokensForETH(amountIn, 0, path, address(this), block.timestamp);
         assertGt((amounts[1] + amounts1[2]), amounts2[1]);
     }
 }
