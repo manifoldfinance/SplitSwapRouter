@@ -24,16 +24,14 @@ contract MultiSplit {
         GOV = tx.origin;
     }
 
-    /// @dev Sends multiple transactions, allowing reverts
+    /// @dev Sends multiple transactions, allowing fails
     /// @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
     ///                     value as a uint256 (=> 32 bytes),
     ///                     data length as a uint256 (=> 32 bytes),
     ///                     data as bytes.
     ///                     see abi.encodePacked for more information on packed encoding
-    /// @notice This method is payable as delegatecalls keep the msg.value from the previous call
-    ///         If the calling method (e.g. execTransaction) received ETH this would revert otherwise
     function multiSplit(bytes memory transactions) external payable {
-        bytes memory dataToken = new bytes(68); // balanceOf / allowance / approve erc20 token call
+        bytes memory dataToken = new bytes(100); // balanceOf / allowance / approve erc20 token call
         // solhint-disable-next-line no-inline-assembly
         assembly ("memory-safe") {
             let length := mload(transactions)
@@ -71,17 +69,25 @@ contract MultiSplit {
                 }
                 default {
                     // token -> token / ETH
-                    // requires token0 to have been sent to this contract
-                    // using call as delegatecall fails because of V3 callback and address(this) usage in SplitSwapRouter
+                    // requires token0 to have been approved to this contract
+                    // using ballache with call as delegatecall fails because of V3 callback and address(this) usage in SplitSwapRouter
                     // success := delegatecall(gas(), router, data, dataLength, 0, 0)
-                    let bal := balance(address()) // check eth balance
                     // extract token0 and amountIn from data
                     let amountIn := mload(add(data, 0x04)) // amountIn at slot 1 of data (offset = 0)
                     let token0 := mload(add(data, 0xC4)) // token0 at slot 7 of data (offset = 6 * 32 = 192 = 0xC0)
+                    // transfer token0 to this contract
+                    mstore(dataToken, shl(224, 0x23b872dd)) // store transferFrom sig
+                    mstore(add(dataToken, 0x04), caller()) // store sender address
+                    mstore(add(dataToken, 0x24), address()) // store recipient address
+                    mstore(add(dataToken, 0x44), amountIn) // store amount
+                    success := call(gas(), token0, 0, dataToken, 100, 0, 0) // call transferFrom of token0 to this address
+                    // if iszero(success) {
+                    //     revert(0, 0)
+                    // } // revert if under funded
                     // check token balance
                     mstore(dataToken, shl(224, 0x70a08231)) // store balanceof sig
                     mstore(add(dataToken, 0x04), address()) // store address
-                    success := call(gas(), token0, 0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
+                    success := staticcall(gas(), token0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
                     let tokenBal := mload(dataToken)
                     if gt(amountIn, tokenBal) {
                         revert(0, 0)
@@ -93,7 +99,7 @@ contract MultiSplit {
                         add(dataToken, 0x24),
                         and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
                     ) // store spender address
-                    success := call(gas(), token0, 0, dataToken, 68, dataToken, 0x20) // call allowance of token0 for router
+                    success := staticcall(gas(), token0, dataToken, 68, dataToken, 0x20) // call allowance of token0 for router
                     let tokenAllowance := mload(dataToken)
                     if gt(amountIn, tokenAllowance) {
                         // if allowance greater than 0, be safe and reset to 0 first (for usdt etc)
@@ -115,24 +121,21 @@ contract MultiSplit {
                         mstore(add(dataToken, 0x24), MAX_UINT) // store amount
                         success := call(gas(), token0, 0, dataToken, 68, 0, 0) // call approve max of token0 to router
                     }
+                    // main swap call
                     success := call(
                         gas(),
-                        and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff),  // router
+                        and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), // router
                         0, //value
                         data, // input data
                         dataLength,
                         0,
                         0
                     )
-                    if gt(balance(address()), bal) {
-                        // send any eth
-                        success := call(gas(), caller(), sub(balance(address()), bal), 0, 0, 0, 0)
-                    }
                     // refund any dust token0
                     // check token balance
                     mstore(dataToken, shl(224, 0x70a08231)) // store balanceof sig
                     mstore(add(dataToken, 0x04), address()) // store address
-                    success := call(gas(), token0, 0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
+                    success := staticcall(gas(), token0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
                     value := mload(dataToken) // re-assign value as tokenBal2
                     if gt(value, sub(tokenBal, amountIn)) {
                         // transfer dust
@@ -142,10 +145,6 @@ contract MultiSplit {
                         success := call(gas(), token0, 0, dataToken, 68, 0, 0) // call transfer token0 to sender
                     }
                 }
-                // do not revert on error
-                // if eq(success, 0) {
-                //     revert(0, 0)
-                // }
                 // Next entry starts at 0x40 byte + data length
                 i := add(i, add(0x40, dataLength))
             }
