@@ -24,18 +24,119 @@ contract MultiSplit {
         GOV = tx.origin;
     }
 
-    /// @dev Sends multiple transactions, allowing fails
+    /// @dev Sends multiple transactions, allowing fails.
+    ///      NB assumes all swaps originate from same token / eth to save multiple transfer gas fees
     /// @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
     ///                     value as a uint256 (=> 32 bytes),
     ///                     data length as a uint256 (=> 32 bytes),
     ///                     data as bytes.
     ///                     see abi.encodePacked for more information on packed encoding
     function multiSplit(bytes memory transactions) external payable {
-        bytes memory dataToken = new bytes(100); // balanceOf / allowance / approve erc20 token call
         // solhint-disable-next-line no-inline-assembly
         assembly ("memory-safe") {
+
+            // ERC20 helper functions
+            function allowance(token0) -> tokenAllowance {
+                let pos := mload(0x40) // free memory pointer
+                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, shl(224, 0xdd62ed3e)) // store allowance sig
+                mstore(add(pos, 0x04), address()) // store owner address
+                mstore(
+                    add(pos, 0x24),
+                    and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+                ) // store spender address
+                let success := staticcall(gas(), token0, pos, 68, pos, 0x20) // call allowance of token0 for router
+                tokenAllowance := mload(pos)
+            }
+
+            function balanceOf(token0) -> bal {
+                let pos := mload(0x40) // free memory pointer
+                mstore(pos, add(pos, 36))  // allocate memory
+                mstore(pos, shl(224, 0x70a08231)) // store balanceof sig
+                mstore(add(pos, 0x04), address()) // store address
+                let success := staticcall(gas(), token0, pos, 36, pos, 0x20) // call balance of token0 at this address
+                bal := mload(pos)
+            }
+
+            function approve(token0, amount) {
+                let pos := mload(0x40) // free memory pointer
+                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, shl(224, 0x095ea7b3)) // store approve sig
+                mstore(
+                    add(pos, 0x04),
+                    and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+                ) // store spender address
+                mstore(add(pos, 0x24), amount) // store amount
+                let success := call(gas(), token0, 0, pos, 68, 0, 0) // call approve 0 of token0 for router
+            }
+
+            function transferFrom(token0, amountIn) {
+                let pos := mload(0x40) // free memory pointer
+                mstore(pos, add(pos, 100))  // allocate memory
+                mstore(pos, shl(224, 0x23b872dd)) // store transferFrom sig
+                mstore(add(pos, 0x04), caller()) // store sender address
+                mstore(add(pos, 0x24), address()) // store recipient address
+                mstore(add(pos, 0x44), amountIn) // store amount
+                let success := call(gas(), token0, 0, pos, 100, 0, 0) // call transferFrom of token0 to this address
+                if iszero(success) { revert(0, 0) }
+            }
+
+            function transfer(token0, amount) {
+                let pos := mload(0x40) // free memory pointer
+                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, shl(224, 0x23b872dd)) // store transfer sig
+                mstore(add(pos, 0x04), caller()) // store address
+                mstore(add(pos, 0x24), amount) // store amount
+                let success := call(gas(), token0, 0, pos, 68, 0, 0) // call transfer token0 to sender
+            }
+           
+            let bal := 0
+            let token0 := 0
+            let amountIn := 0
             let length := mload(transactions)
             let i := 0x20
+            // assume all txs have same origin token
+            // i.e. either eth or a single token
+            // get initial tokens / eth and record balance
+            // assure approve allowance is good
+            switch iszero(iszero(callvalue())) 
+            case 1 {
+                bal := balance(address()) // eth balance
+            } 
+            default {
+                for {
+                    // Pre block is not used in "while mode"
+                } lt(i, length) {
+                    // Post block is not used in "while mode"
+                } {
+                    let data := add(transactions, add(i, 0x40))
+                    let dataLength := mload(add(transactions, add(i, 0x20)))
+                    // extract token0 and amountIn from data
+                    amountIn := add(amountIn, mload(add(data, 0x04))) // amountIn at slot 1 of data (offset = 4)
+                    if iszero(token0) {
+                        token0 := mload(add(data, 0xC4)) // token0 at slot 7 of data (offset = 6 * 32 = 196 = 0xC4)
+                    }
+                    // Next entry starts at 0x40 byte + data length
+                    i := add(i, add(0x40, dataLength))
+                }
+                // transfer token0 to this contract
+                transferFrom(token0, amountIn)
+                // check token balance
+                bal := balanceOf(token0)  // token0 balance
+                // check router allowance
+                let tokenAllowance := allowance(token0)
+                if gt(amountIn, tokenAllowance) {
+                    // if allowance greater than 0, be safe and reset to 0 first (for usdt etc)
+                    if iszero(iszero(tokenAllowance)) {
+                        approve(token0, 0)
+                    }
+                    // set to max
+                    approve(token0, MAX_UINT)
+                }
+            }            
+
+            //  run swaps
+            i := 0x20
             for {
                 // Pre block is not used in "while mode"
             } lt(i, length) {
@@ -49,10 +150,6 @@ contract MultiSplit {
                 case 0 {
                     // ETH -> token
                     // requires eth to have been sent to this contract
-                    let bal := balance(address()) // check eth balance
-                    if gt(value, bal) {
-                        revert(0, 0)
-                    } // revert if not enough balance for tx
                     success := call(
                         gas(),
                         and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), // router
@@ -61,67 +158,11 @@ contract MultiSplit {
                         dataLength,
                         0,
                         0
-                    ) // swap
-                    if gt(balance(address()), sub(bal, value)) {
-                        // refund any dust
-                        success := call(gas(), caller(), sub(balance(address()), sub(bal, value)), 0, 0, 0, 0)
-                    }
+                    )
                 }
                 default {
                     // token -> token / ETH
                     // requires token0 to have been approved to this contract
-                    // using ballache with call as delegatecall fails because of V3 callback and address(this) usage in SplitSwapRouter
-                    // success := delegatecall(gas(), router, data, dataLength, 0, 0)
-                    // extract token0 and amountIn from data
-                    let amountIn := mload(add(data, 0x04)) // amountIn at slot 1 of data (offset = 0)
-                    let token0 := mload(add(data, 0xC4)) // token0 at slot 7 of data (offset = 6 * 32 = 192 = 0xC0)
-                    // transfer token0 to this contract
-                    mstore(dataToken, shl(224, 0x23b872dd)) // store transferFrom sig
-                    mstore(add(dataToken, 0x04), caller()) // store sender address
-                    mstore(add(dataToken, 0x24), address()) // store recipient address
-                    mstore(add(dataToken, 0x44), amountIn) // store amount
-                    success := call(gas(), token0, 0, dataToken, 100, 0, 0) // call transferFrom of token0 to this address
-                    // if iszero(success) {
-                    //     revert(0, 0)
-                    // } // revert if under funded
-                    // check token balance
-                    mstore(dataToken, shl(224, 0x70a08231)) // store balanceof sig
-                    mstore(add(dataToken, 0x04), address()) // store address
-                    success := staticcall(gas(), token0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
-                    let tokenBal := mload(dataToken)
-                    if gt(amountIn, tokenBal) {
-                        revert(0, 0)
-                    } // revert if not enough balance for tx
-                    // check router allowance
-                    mstore(dataToken, shl(224, 0xdd62ed3e)) // store allowance sig
-                    mstore(add(dataToken, 0x04), address()) // store owner address
-                    mstore(
-                        add(dataToken, 0x24),
-                        and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
-                    ) // store spender address
-                    success := staticcall(gas(), token0, dataToken, 68, dataToken, 0x20) // call allowance of token0 for router
-                    let tokenAllowance := mload(dataToken)
-                    if gt(amountIn, tokenAllowance) {
-                        // if allowance greater than 0, be safe and reset to 0 first (for usdt etc)
-                        if iszero(iszero(tokenAllowance)) {
-                            mstore(dataToken, shl(224, 0x095ea7b3)) // store approve sig
-                            mstore(
-                                add(dataToken, 0x04),
-                                and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
-                            ) // store spender address
-                            mstore(add(dataToken, 0x24), 0) // store amount
-                            success := call(gas(), token0, 0, dataToken, 68, 0, 0) // call approve 0 of token0 for router
-                        }
-                        // set to max
-                        mstore(dataToken, shl(224, 0x095ea7b3)) // store approve sig
-                        mstore(
-                            add(dataToken, 0x04),
-                            and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
-                        ) // store spender address
-                        mstore(add(dataToken, 0x24), MAX_UINT) // store amount
-                        success := call(gas(), token0, 0, dataToken, 68, 0, 0) // call approve max of token0 to router
-                    }
-                    // main swap call
                     success := call(
                         gas(),
                         and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), // router
@@ -131,22 +172,25 @@ contract MultiSplit {
                         0,
                         0
                     )
-                    // refund any dust token0
-                    // check token balance
-                    mstore(dataToken, shl(224, 0x70a08231)) // store balanceof sig
-                    mstore(add(dataToken, 0x04), address()) // store address
-                    success := staticcall(gas(), token0, dataToken, 36, dataToken, 0x20) // call balance of token0 at this address
-                    value := mload(dataToken) // re-assign value as tokenBal2
-                    if gt(value, sub(tokenBal, amountIn)) {
-                        // transfer dust
-                        mstore(dataToken, shl(224, 0x23b872dd)) // store transfer sig
-                        mstore(add(dataToken, 0x04), caller()) // store address
-                        mstore(add(dataToken, 0x24), sub(value, sub(tokenBal, amountIn))) // store amount
-                        success := call(gas(), token0, 0, dataToken, 68, 0, 0) // call transfer token0 to sender
-                    }
                 }
                 // Next entry starts at 0x40 byte + data length
                 i := add(i, add(0x40, dataLength))
+            }
+
+            //  refund any input dust
+            switch iszero(iszero(callvalue()))
+            case 1{
+                if gt(balance(address()), sub(bal, callvalue())) {
+                    // refund any dust
+                    let success := call(gas(), caller(), sub(balance(address()), sub(bal, callvalue())), 0, 0, 0, 0)
+                }
+            } 
+            default {
+                let newBal := balanceOf(token0)  // re-assign value as tokenBal2
+                if gt(newBal, sub(bal, amountIn)) {
+                    // transfer dust
+                    transfer(token0, sub(newBal, sub(bal, amountIn)))
+                }
             }
         }
     }

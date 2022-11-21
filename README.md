@@ -31,6 +31,8 @@ Using the path given, `SplitSwapRouterLite` optimally splits swaps across pools 
 | Contract               | Deployment address                           | Network     |
 |------------------------|----------------------------------------------|-------------|
 | `SplitSwapRouter`      | [0x77337dEEA78720542f0A1325394Def165918D562](https://etherscan.io/address/0x77337deea78720542f0a1325394def165918d562) | Eth Mainnet |
+| `MultiSplit`      | [0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409](https://etherscan.io/address/0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409#code) | Eth Mainnet |
+
 
 
 ## Developer Setup

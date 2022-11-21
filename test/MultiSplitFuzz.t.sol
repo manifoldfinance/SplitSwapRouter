@@ -131,4 +131,47 @@ contract MultiSplitFuzzTest is DSTest {
 
         assertGt(usdc.balanceOf(address(this)), bal);
     }
+
+    function testSwapExactTokensForETH(uint256 amountIn) external {
+        vm.assume(amountIn > 1000000000);
+        // vm.assume(amountIn < address(this).balance / 4);
+        (uint112 reserveUsdc , , ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveUsdc / 10); // max USDC reserve
+
+        // uint256 amountIn = 200000000000000000000;
+        writeTokenBalance(address(this), USDC, amountIn * 4);
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = USDC;
+        path[1] = WETH;
+        address[] memory path2 = new address[](3);
+        path2[0] = USDC;
+        path2[1] = DAI;
+        path2[2] = WETH;
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        uint256 bal = address(this).balance;
+        ERC20(USDC).approve(address(multi), amountIn * 2);
+        bytes memory data = abi.encodeWithSignature(
+            "swapExactTokensForETH(uint256,uint256,address[],address,uint256)",
+            amountIn,
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        bytes memory data2 = abi.encodeWithSignature(
+            "swapExactTokensForETH(uint256,uint256,address[],address,uint256)",
+            amountIn,
+            amountOutMin,
+            path2,
+            to,
+            deadline
+        );
+        // router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+        multi.multiSplit(abi.encodePacked(uint256(0), data.length, data, uint256(0), data2.length, data2));
+
+        assertGt(address(this).balance, bal);
+    }
 }
+
