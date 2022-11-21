@@ -26,7 +26,16 @@ Using the path given, `SplitSwapRouter` optimally splits swaps across pools from
 ## Avalanche and Fantom
 Using the path given, `SplitSwapRouterLite` optimally splits swaps across pools from TraderJoe / Spookyswap and Sushiswap.
 
-## Setup
+## Deployments
+
+| Contract               | Deployment address                           | Network     |
+|------------------------|----------------------------------------------|-------------|
+| `SplitSwapRouter`      | [0x77337dEEA78720542f0A1325394Def165918D562](https://etherscan.io/address/0x77337deea78720542f0a1325394def165918d562) | Eth Mainnet |
+| `MultiSplit`      | [0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409](https://etherscan.io/address/0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409#code) | Eth Mainnet |
+
+
+
+## Developer Setup
 Copy `.env-example` to `.env` and fill in `ETH_RPC_URL`.
 ```sh
 source .env
@@ -92,10 +101,20 @@ forge test -f "$ETH_RPC_URL" -vvvvv --match-contract SplitSwapRouterVS1inchTest 
 
 [Benchmark test result](docs/benchmark-test.md)
 
+## Multi Split test
+
+Batch multiple swaps into one call.
+
+```sh
+forge test -f "$ETH_RPC_URL" -vvvvv --match-contract MultiSplitFuzzTest --etherscan-api-key $ETHERSCAN_API
+```
+
+[Multi Split test result](docs/multi-split-test.md)
+
 
 ## Test invest
 
-A little off-chain knowledge can turn `SplitSwapRouter` into a smart order router, by simply knowing possible routes and their relative reserves upfront. This can be acheived with a front-end interface and presents scope for further work. As a working example, we show the gain for a FOLD investor using `SplitSwapRouter` with 2 routes. 
+A little off-chain knowledge can turn `SplitSwapRouter` into a smart order router, by simply knowing possible routes and their relative reserves upfront. This can be acheived with a front-end interface [as with this one by Manifold](https://github.com/manifoldfinance/SplitSwapRouter-UI/). As a working example, we show the gain for a FOLD investor using `SplitSwapRouter` with 2 routes. 
 
 Trade 140 ETH -> FOLD 
 - best route would be determined by knowing the pools upfront:
