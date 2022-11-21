@@ -23,9 +23,7 @@ contract DeployMultiScript is Script {
         } else revert UnknownChain();
 
         vm.startBroadcast();
-        new MultiSplit{ salt: "Manifold" }(
-            router
-        );
+        new MultiSplit{ salt: "Manifold" }(router);
         vm.stopBroadcast();
     }
 }

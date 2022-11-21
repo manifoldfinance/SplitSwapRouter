@@ -135,7 +135,7 @@ contract MultiSplitFuzzTest is DSTest {
     function testSwapExactTokensForETH(uint256 amountIn) external {
         vm.assume(amountIn > 1000000000);
         // vm.assume(amountIn < address(this).balance / 4);
-        (uint112 reserveUsdc , , ) = usdWeth.getReserves();
+        (uint112 reserveUsdc, , ) = usdWeth.getReserves();
         vm.assume(amountIn < reserveUsdc / 10); // max USDC reserve
 
         // uint256 amountIn = 200000000000000000000;
@@ -174,4 +174,3 @@ contract MultiSplitFuzzTest is DSTest {
         assertGt(address(this).balance, bal);
     }
 }
-

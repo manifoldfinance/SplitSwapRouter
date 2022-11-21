@@ -34,11 +34,10 @@ contract MultiSplit {
     function multiSplit(bytes memory transactions) external payable {
         // solhint-disable-next-line no-inline-assembly
         assembly ("memory-safe") {
-
             // ERC20 helper functions
             function allowance(token0) -> tokenAllowance {
                 let pos := mload(0x40) // free memory pointer
-                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, add(pos, 68)) // allocate memory
                 mstore(pos, shl(224, 0xdd62ed3e)) // store allowance sig
                 mstore(add(pos, 0x04), address()) // store owner address
                 mstore(
@@ -51,7 +50,7 @@ contract MultiSplit {
 
             function balanceOf(token0) -> bal {
                 let pos := mload(0x40) // free memory pointer
-                mstore(pos, add(pos, 36))  // allocate memory
+                mstore(pos, add(pos, 36)) // allocate memory
                 mstore(pos, shl(224, 0x70a08231)) // store balanceof sig
                 mstore(add(pos, 0x04), address()) // store address
                 let success := staticcall(gas(), token0, pos, 36, pos, 0x20) // call balance of token0 at this address
@@ -60,7 +59,7 @@ contract MultiSplit {
 
             function approve(token0, amount) {
                 let pos := mload(0x40) // free memory pointer
-                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, add(pos, 68)) // allocate memory
                 mstore(pos, shl(224, 0x095ea7b3)) // store approve sig
                 mstore(
                     add(pos, 0x04),
@@ -72,24 +71,26 @@ contract MultiSplit {
 
             function transferFrom(token0, amountIn) {
                 let pos := mload(0x40) // free memory pointer
-                mstore(pos, add(pos, 100))  // allocate memory
+                mstore(pos, add(pos, 100)) // allocate memory
                 mstore(pos, shl(224, 0x23b872dd)) // store transferFrom sig
                 mstore(add(pos, 0x04), caller()) // store sender address
                 mstore(add(pos, 0x24), address()) // store recipient address
                 mstore(add(pos, 0x44), amountIn) // store amount
                 let success := call(gas(), token0, 0, pos, 100, 0, 0) // call transferFrom of token0 to this address
-                if iszero(success) { revert(0, 0) }
+                if iszero(success) {
+                    revert(0, 0)
+                }
             }
 
             function transfer(token0, amount) {
                 let pos := mload(0x40) // free memory pointer
-                mstore(pos, add(pos, 68))  // allocate memory
+                mstore(pos, add(pos, 68)) // allocate memory
                 mstore(pos, shl(224, 0x23b872dd)) // store transfer sig
                 mstore(add(pos, 0x04), caller()) // store address
                 mstore(add(pos, 0x24), amount) // store amount
                 let success := call(gas(), token0, 0, pos, 68, 0, 0) // call transfer token0 to sender
             }
-           
+
             let bal := 0
             let token0 := 0
             let amountIn := 0
@@ -99,10 +100,10 @@ contract MultiSplit {
             // i.e. either eth or a single token
             // get initial tokens / eth and record balance
             // assure approve allowance is good
-            switch iszero(iszero(callvalue())) 
+            switch iszero(iszero(callvalue()))
             case 1 {
                 bal := balance(address()) // eth balance
-            } 
+            }
             default {
                 for {
                     // Pre block is not used in "while mode"
@@ -122,7 +123,7 @@ contract MultiSplit {
                 // transfer token0 to this contract
                 transferFrom(token0, amountIn)
                 // check token balance
-                bal := balanceOf(token0)  // token0 balance
+                bal := balanceOf(token0) // token0 balance
                 // check router allowance
                 let tokenAllowance := allowance(token0)
                 if gt(amountIn, tokenAllowance) {
@@ -133,7 +134,7 @@ contract MultiSplit {
                     // set to max
                     approve(token0, MAX_UINT)
                 }
-            }            
+            }
 
             //  run swaps
             i := 0x20
@@ -179,14 +180,14 @@ contract MultiSplit {
 
             //  refund any input dust
             switch iszero(iszero(callvalue()))
-            case 1{
+            case 1 {
                 if gt(balance(address()), sub(bal, callvalue())) {
                     // refund any dust
                     let success := call(gas(), caller(), sub(balance(address()), sub(bal, callvalue())), 0, 0, 0, 0)
                 }
-            } 
+            }
             default {
-                let newBal := balanceOf(token0)  // re-assign value as tokenBal2
+                let newBal := balanceOf(token0) // re-assign value as tokenBal2
                 if gt(newBal, sub(bal, amountIn)) {
                     // transfer dust
                     transfer(token0, sub(newBal, sub(bal, amountIn)))
