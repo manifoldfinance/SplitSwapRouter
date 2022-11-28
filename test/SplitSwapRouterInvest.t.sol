@@ -67,11 +67,7 @@ contract SplitSwapRouterInvestTest is DSTest {
         path2[0] = WETH;
         path2[1] = USDC;
         path2[2] = FOLD;
-<<<<<<< HEAD
         uint256 partAmountIn = (amountIn * 1500000) / 2500000;
-=======
-        uint256 partAmountIn = (amountIn * 2400000) / 2500000;
->>>>>>> bb9f009a459b1fa354f4951e0b179cdc1fb64d2b
         uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn }(
             0,
             path,
