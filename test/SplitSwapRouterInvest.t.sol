@@ -30,8 +30,10 @@ contract SplitSwapRouterInvestTest is DSTest {
     uint256 minLiquidity = uint256(1000);
     uint256 maxSwaps = uint256(12);
     mapping(address => bool) internal tokenBlacklist;
+    address gov = 0xE2aa13B5B5222F5f13E179b4a3c01f70A0b2eC40;
 
     function setUp() public {
+        vm.prank(gov, gov);
         router = new SplitSwapRouter(
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH9
             address(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac), // Sushi factory
@@ -41,7 +43,19 @@ contract SplitSwapRouterInvestTest is DSTest {
         );
     }
 
+    function writeTokenBalance(
+        address who,
+        address token,
+        uint256 amt
+    ) internal {
+        stdstore.target(token).sig(ERC20(token).balanceOf.selector).with_key(who).checked_write(amt);
+    }
+
+    // Function to receive Ether. msg.data must be empty
     receive() external payable {}
+
+    // Fallback function is called when msg.data is not empty
+    fallback() external payable {}
 
     function testInvest() external {
         uint256 amountIn = 140000000000000000000;
@@ -53,7 +67,11 @@ contract SplitSwapRouterInvestTest is DSTest {
         path2[0] = WETH;
         path2[1] = USDC;
         path2[2] = FOLD;
+<<<<<<< HEAD
         uint256 partAmountIn = (amountIn * 1500000) / 2500000;
+=======
+        uint256 partAmountIn = (amountIn * 2400000) / 2500000;
+>>>>>>> bb9f009a459b1fa354f4951e0b179cdc1fb64d2b
         uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn }(
             0,
             path,
