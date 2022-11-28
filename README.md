@@ -26,7 +26,21 @@ Using the path given, `SplitSwapRouter` optimally splits swaps across pools from
 ## Avalanche and Fantom
 Using the path given, `SplitSwapRouterLite` optimally splits swaps across pools from TraderJoe / Spookyswap and Sushiswap.
 
-## Setup
+## Deployments
+
+| Contract               | Deployment address                           | Network     |
+|------------------------|----------------------------------------------|-------------|
+| `SplitSwapRouter`      | [0x77337dEEA78720542f0A1325394Def165918D562](https://etherscan.io/address/0x77337deea78720542f0a1325394def165918d562) | Eth Mainnet |
+| `MultiSplit`      | [0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409](https://etherscan.io/address/0xA9b07a3039ADc6b2c6cA1e4A76F240A7b8D66409#code) | Eth Mainnet |
+| `SplitSwapRouterLite`  | [0x7726E85aF071dD93366fe9C5C2dCbCe6276F568a](https://polygonscan.com/address/0x7726e85af071dd93366fe9c5c2dcbce6276f568a) | Polygon Mainnet |
+| `SplitSwapRouterLite`  | [0xB76f8AE19dC12815D63FFbB5059F6B5fB5c03B70](https://snowtrace.io/address/0xb76f8ae19dc12815d63ffbb5059f6b5fb5c03b70) | Avalanche C chain |
+| `SplitSwapRouterLite`  | [0xb064944d5d6cF5D453F0FEe4BdE2FB6B85534d95](https://ftmscan.com/address/0xb064944d5d6cf5d453f0fee4bde2fb6b85534d95) | Fantom |
+
+
+
+
+
+## Developer Setup
 Copy `.env-example` to `.env` and fill in `ETH_RPC_URL`.
 ```sh
 source .env
@@ -148,7 +162,6 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 
 ### Todo
 
-- [ ] Gas checks for adding splits (more efficient method needed)
 - [ ] MockERC20 and factories for faster fuzz testing
 - [ ] Weth10 integration
 - [ ] Gas optimisation
@@ -168,3 +181,4 @@ Fill in `PRIVATE_KEY` and `ETHERSCAN_KEY` in `.env`.
 - [x] Documentation of derived math and code
 - [x] Modify `SplitSwapRouterLite` for multi-chain
 - [x] Deployment scripts for multi-chain
+- [x] Deploy multi-chain

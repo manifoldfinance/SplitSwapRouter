@@ -53,11 +53,26 @@ contract SplitSwapRouterInvestTest is DSTest {
         path2[0] = WETH;
         path2[1] = USDC;
         path2[2] = FOLD;
-        uint256 partAmountIn = amountIn * 1500000 / 2500000;
-        uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn  }(0, path, address(this), block.timestamp);
-        uint256[] memory amounts1 = router.swapExactETHForTokens{ value: amountIn - partAmountIn  }(0, path2, address(this), block.timestamp);
+        uint256 partAmountIn = (amountIn * 1500000) / 2500000;
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: partAmountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        uint256[] memory amounts1 = router.swapExactETHForTokens{ value: amountIn - partAmountIn }(
+            0,
+            path2,
+            address(this),
+            block.timestamp
+        );
         vm.roll(blockNum); // roll back state
-        uint256[] memory amounts2 = routerOld.swapExactETHForTokens{ value: amountIn }(0, path, address(this), block.timestamp);
+        uint256[] memory amounts2 = routerOld.swapExactETHForTokens{ value: amountIn }(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
         assertGt((amounts[1] + amounts1[2]), amounts2[1]);
     }
 }
