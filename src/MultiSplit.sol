@@ -85,7 +85,7 @@ contract MultiSplit {
             function transfer(token0, amount) {
                 let pos := mload(0x40) // free memory pointer
                 mstore(pos, add(pos, 68)) // allocate memory
-                mstore(pos, shl(224, 0x23b872dd)) // store transfer sig
+                mstore(pos, shl(224, 0xa9059cbb)) // store transfer sig
                 mstore(add(pos, 0x04), caller()) // store address
                 mstore(add(pos, 0x24), amount) // store amount
                 let success := call(gas(), token0, 0, pos, 68, 0, 0) // call transfer token0 to sender
@@ -111,14 +111,13 @@ contract MultiSplit {
                     // Post block is not used in "while mode"
                 } {
                     let data := add(transactions, add(i, 0x40))
-                    let dataLength := mload(add(transactions, add(i, 0x20)))
                     // extract token0 and amountIn from data
                     amountIn := add(amountIn, mload(add(data, 0x04))) // amountIn at slot 1 of data (offset = 4)
                     if iszero(token0) {
                         token0 := mload(add(data, 0xC4)) // token0 at slot 7 of data (offset = 6 * 32 = 196 = 0xC4)
                     }
                     // Next entry starts at 0x40 byte + data length
-                    i := add(i, add(0x40, dataLength))
+                    i := add(i, add(0x40, mload(add(transactions, add(i, 0x20)))))
                 }
                 // transfer token0 to this contract
                 transferFrom(token0, amountIn)
@@ -143,14 +142,12 @@ contract MultiSplit {
             } lt(i, length) {
                 // Post block is not used in "while mode"
             } {
-                let value := mload(add(transactions, i))
                 let dataLength := mload(add(transactions, add(i, 0x20)))
-                let data := add(transactions, add(i, 0x40))
                 let success := call(
                     gas(), // gas left
                     and(sload(0), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff), // router
                     mload(add(transactions, i)), // value
-                    data, // input data (0x(4 byte func sig hash)(abi encoded args))
+                    add(transactions, add(i, 0x40)), // input data (0x(4 byte func sig hash)(abi encoded args))
                     dataLength, // input data byte length
                     0, // output
                     0 // output byte length
@@ -186,6 +183,11 @@ contract MultiSplit {
     function changeGov(address newGov) external {
         if (msg.sender != GOV) revert ExecuteNotAuthorized();
         GOV = newGov;
+    }
+
+    function changeRouter(address newRouter) external {
+        if (msg.sender != GOV) revert ExecuteNotAuthorized();
+        ROUTER = newRouter;
     }
 
     /// @notice Sweep dust tokens and eth to recipient

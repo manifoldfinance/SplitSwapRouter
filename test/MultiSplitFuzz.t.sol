@@ -23,6 +23,7 @@ contract MultiSplitFuzzTest is DSTest {
     address USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address FOLD = 0xd084944d3c05CD115C09d072B9F44bA3E0E45921;
+    address USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     IWETH weth = IWETH(WETH);
     ERC20 usdc = ERC20(USDC);
     ERC20 dai = ERC20(DAI);
@@ -83,12 +84,52 @@ contract MultiSplitFuzzTest is DSTest {
             to,
             deadline
         );
+
         // router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
         multi.multiSplit{ value: 2 * amountIn }(
             abi.encodePacked(amountIn, data.length, data, amountIn, data2.length, data2)
         );
 
         assertGt(usdc.balanceOf(address(this)), bal);
+    }
+
+    function testSwapExactETHForTokens2(uint256 amountIn) external {
+        vm.assume(amountIn > 1000000000000);
+        vm.assume(amountIn < address(this).balance / 4);
+        (, uint112 reserveWeth, ) = usdWeth.getReserves();
+        vm.assume(amountIn < reserveWeth / 10); // max USDC reserve
+        // uint256 amountIn = 200000000000000000000;
+        uint256 amountOutMin = 0;
+        address[] memory path = new address[](2);
+        path[0] = WETH;
+        path[1] = USDT;
+        address[] memory path2 = new address[](3);
+        path2[0] = WETH;
+        path2[1] = DAI;
+        path2[2] = USDT;
+        address to = address(this);
+        uint256 deadline = block.timestamp;
+        uint256 bal = usdc.balanceOf(address(this));
+        bytes memory data = abi.encodeWithSignature(
+            "swapExactETHForTokens(uint256,address[],address,uint256)",
+            amountOutMin,
+            path,
+            to,
+            deadline
+        );
+        bytes memory data2 = abi.encodeWithSignature(
+            "swapExactETHForTokens(uint256,address[],address,uint256)",
+            amountOutMin,
+            path2,
+            to,
+            deadline
+        );
+        // router.swapExactETHForTokens{ value: amountIn }(amountOutMin, path, to, deadline);
+        multi.multiSplit{ value: 3 * amountIn }(
+            abi.encodePacked(amountIn, data.length, data, amountIn, data2.length, data2)
+        );
+
+        assertGt(ERC20(USDT).balanceOf(address(this)), bal);
     }
 
     function testSwapExactTokensForTokens(uint256 amountIn) external {
