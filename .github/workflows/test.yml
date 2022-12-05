@@ -4,6 +4,7 @@ on:
   push:
     paths:
     - 'src/**/*.sol'
+    - 'test/**/*.sol'
     - '.github/workflows/*.yaml'
     - '.github/workflows/*.yml'
 
